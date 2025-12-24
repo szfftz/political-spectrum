@@ -131,7 +131,7 @@
 </template>
 
 <script>
-  import { ref, computed, onMounted, onUnmounted } from 'vue';
+  import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
   import { useRouter } from 'vue-router';
   import * as d3 from 'd3';
   import { getSupabaseClient, isConfigured } from '../config/supabase.js';
@@ -223,13 +223,16 @@
         }
       };
 
-      const colors = {
-        blue: getCSSVariable('--my-color-blue'),
-        green: getCSSVariable('--my-color-green'),
-        red: getCSSVariable('--my-color-red'),
-        white: getCSSVariable('--my-color-white'),
-        backgroundGray: getCSSVariable('--my-color-background-gray'),
-        darkGray: getCSSVariable('--my-color-dark-gray'),
+      // 获取颜色的函数，确保每次调用时都重新获取最新的CSS变量值
+      const getColors = () => {
+        return {
+          blue: getCSSVariable('--my-color-blue'),
+          green: getCSSVariable('--my-color-green'),
+          red: getCSSVariable('--my-color-red'),
+          white: getCSSVariable('--my-color-white'),
+          backgroundGray: getCSSVariable('--my-color-background-gray'),
+          darkGray: getCSSVariable('--my-color-dark-gray'),
+        };
       };
 
       const tagWidth = 60;
@@ -620,11 +623,38 @@
       const drawVisualization = () => {
         if (!svgContainer.value || !contentContainer.value) return;
 
+        // 验证颜色是否已正确加载
+        const currentColors = getColors();
+        const hasValidColors =
+          currentColors.blue &&
+          currentColors.green &&
+          currentColors.red &&
+          currentColors.white &&
+          currentColors.backgroundGray;
+
+        // 如果颜色未加载，延迟重试
+        if (!hasValidColors) {
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              drawVisualization();
+            }, 50);
+          });
+          return;
+        }
+
         d3.select(svgContainer.value).selectAll('svg').remove();
 
         const containerRect = contentContainer.value.getBoundingClientRect();
         const containerWidth = containerRect.width;
         const containerHeight = containerRect.height;
+
+        // 确保容器有有效的尺寸
+        if (containerWidth <= 0 || containerHeight <= 0) {
+          requestAnimationFrame(() => {
+            drawVisualization();
+          });
+          return;
+        }
 
         const firstSectionWidth = calculateSideSectionWidth(containerWidth);
         const rightWidth = calculateSideSectionWidth(containerWidth);
@@ -646,9 +676,10 @@
           .attr('class', 'd-block position-relative w-100 h-100')
           .style('pointer-events', 'none');
 
+        // 在渲染时动态获取颜色，确保CSS变量已加载
         createGradientSpectrum({
           svg,
-          colors,
+          colors: currentColors,
           gradientAreaLeft,
           gradientAreaTop,
           gradientAreaWidth,
@@ -923,76 +954,91 @@
           });
         }
 
-        setTimeout(() => {
-          if (!contentContainer.value) return;
-          const containerRect = contentContainer.value.getBoundingClientRect();
-          const containerWidth = containerRect.width;
-          const containerHeight = containerRect.height;
-
-          const firstSectionWidth = calculateSideSectionWidth(containerWidth);
-
-          const defaultPositions = calculateBoxPositions(firstSectionWidth, 0, containerHeight);
-
-          if (hasSavedData) {
+        // 使用 nextTick 确保DOM已准备好，然后使用 requestAnimationFrame 确保浏览器准备好渲染
+        nextTick(() => {
+          requestAnimationFrame(() => {
             if (!contentContainer.value) return;
             const containerRect = contentContainer.value.getBoundingClientRect();
             const containerWidth = containerRect.width;
             const containerHeight = containerRect.height;
 
-            const thirdSectionWidth = calculateSideSectionWidth(containerWidth);
-            rightSectionWidth.value = thirdSectionWidth;
+            // 如果容器尺寸无效，延迟重试
+            if (containerWidth <= 0 || containerHeight <= 0) {
+              setTimeout(() => {
+                if (!contentContainer.value) return;
+                const retryRect = contentContainer.value.getBoundingClientRect();
+                if (retryRect.width > 0 && retryRect.height > 0) {
+                  drawVisualization();
+                }
+              }, 100);
+              return;
+            }
 
-            const grayAreaWidth = containerWidth - firstSectionWidth - thirdSectionWidth;
-            const grayAreaHeight = containerHeight;
+            const firstSectionWidth = calculateSideSectionWidth(containerWidth);
 
-            const grayAreaLeft = firstSectionWidth;
-            const grayAreaTop = 0;
+            const defaultPositions = calculateBoxPositions(firstSectionWidth, 0, containerHeight);
 
-            boxes = POLITICIAN_NAMES.map((name, index) => {
-              const defaultPos = defaultPositions[index];
+            if (hasSavedData) {
+              if (!contentContainer.value) return;
+              const containerRect = contentContainer.value.getBoundingClientRect();
+              const containerWidth = containerRect.width;
+              const containerHeight = containerRect.height;
 
-              const savedFromJson = savedPositionsMap?.[name];
-              const savedXPercent =
-                savedFromJson?.x !== undefined && savedFromJson?.x !== null
-                  ? String(savedFromJson.x)
-                  : cookieUtils.get(`political-spectrum_${name}_x`);
-              const savedYPercent =
-                savedFromJson?.y !== undefined && savedFromJson?.y !== null
-                  ? String(savedFromJson.y)
-                  : cookieUtils.get(`political-spectrum_${name}_y`);
+              const thirdSectionWidth = calculateSideSectionWidth(containerWidth);
+              rightSectionWidth.value = thirdSectionWidth;
 
-              let x = defaultPos.x;
-              let y = defaultPos.y;
+              const grayAreaWidth = containerWidth - firstSectionWidth - thirdSectionWidth;
+              const grayAreaHeight = containerHeight;
 
-              if (
-                savedXPercent !== null &&
-                savedYPercent !== null &&
-                savedXPercent !== '-1' &&
-                savedYPercent !== '-1'
-              ) {
-                const xPercent = parseFloat(savedXPercent);
-                const yPercent = parseFloat(savedYPercent);
-                x = grayAreaLeft + (xPercent / 100) * grayAreaWidth;
-                y = grayAreaTop + (yPercent / 100) * grayAreaHeight;
-              }
+              const grayAreaLeft = firstSectionWidth;
+              const grayAreaTop = 0;
 
-              return {
-                x: x,
-                y: y,
-                defaultX: defaultPos.defaultX,
-                defaultY: defaultPos.defaultY,
-                name: name,
-              };
-            });
+              boxes = POLITICIAN_NAMES.map((name, index) => {
+                const defaultPos = defaultPositions[index];
 
-            rearrangeWhiteAreaBoxes(firstSectionWidth, containerHeight);
-          } else {
-            boxes = defaultPositions;
-          }
+                const savedFromJson = savedPositionsMap?.[name];
+                const savedXPercent =
+                  savedFromJson?.x !== undefined && savedFromJson?.x !== null
+                    ? String(savedFromJson.x)
+                    : cookieUtils.get(`political-spectrum_${name}_x`);
+                const savedYPercent =
+                  savedFromJson?.y !== undefined && savedFromJson?.y !== null
+                    ? String(savedFromJson.y)
+                    : cookieUtils.get(`political-spectrum_${name}_y`);
 
-          drawVisualization();
-          window.addEventListener('resize', handleResize);
-        }, 0);
+                let x = defaultPos.x;
+                let y = defaultPos.y;
+
+                if (
+                  savedXPercent !== null &&
+                  savedYPercent !== null &&
+                  savedXPercent !== '-1' &&
+                  savedYPercent !== '-1'
+                ) {
+                  const xPercent = parseFloat(savedXPercent);
+                  const yPercent = parseFloat(savedYPercent);
+                  x = grayAreaLeft + (xPercent / 100) * grayAreaWidth;
+                  y = grayAreaTop + (yPercent / 100) * grayAreaHeight;
+                }
+
+                return {
+                  x: x,
+                  y: y,
+                  defaultX: defaultPos.defaultX,
+                  defaultY: defaultPos.defaultY,
+                  name: name,
+                };
+              });
+
+              rearrangeWhiteAreaBoxes(firstSectionWidth, containerHeight);
+            } else {
+              boxes = defaultPositions;
+            }
+
+            drawVisualization();
+            window.addEventListener('resize', handleResize);
+          });
+        });
       });
 
       const saveToSupabase = async () => {

@@ -1,5 +1,22 @@
 export function getCSSVariable(variableName) {
-  return getComputedStyle(document.documentElement).getPropertyValue(variableName).trim();
+  const value = getComputedStyle(document.documentElement).getPropertyValue(variableName).trim();
+  // 如果值为空，返回默认值（避免在CSS未加载时返回空字符串导致黑色）
+  if (!value) {
+    // 根据变量名返回对应的默认颜色值
+    const defaults = {
+      '--my-color-blue': 'hsl(210, 85%, 65%)',
+      '--my-color-green': 'hsl(150, 85%, 65%)',
+      '--my-color-red': 'hsl(0, 85%, 65%)',
+      '--my-color-white': 'hsl(210, 60%, 92%)',
+      '--my-color-yellow': 'hsl(60, 98%, 63%)',
+      '--my-color-background-gray': '#dedede',
+      '--my-color-dark-gray': '#393939',
+      '--my-color-light-gray': '#7d7d7d',
+      '--my-color-highlight-gray': '#c8c8c8',
+    };
+    return defaults[variableName] || value;
+  }
+  return value;
 }
 
 export function createGradientSpectrum({
@@ -10,6 +27,13 @@ export function createGradientSpectrum({
   gradientAreaWidth,
   gradientAreaHeight,
 }) {
+  // 验证颜色值，如果为空则使用默认值
+  const blue = colors.blue || 'hsl(210, 85%, 65%)';
+  const green = colors.green || 'hsl(150, 85%, 65%)';
+  const red = colors.red || 'hsl(0, 85%, 65%)';
+  const white = colors.white || 'hsl(210, 60%, 92%)';
+  const backgroundGray = colors.backgroundGray || '#dedede';
+
   const defs = svg.append('defs');
 
   const topLeftGradient = defs
@@ -22,12 +46,12 @@ export function createGradientSpectrum({
   topLeftGradient
     .append('stop')
     .attr('offset', '0%')
-    .attr('stop-color', colors.blue)
+    .attr('stop-color', blue)
     .attr('stop-opacity', '1.0');
   topLeftGradient
     .append('stop')
     .attr('offset', '92%')
-    .attr('stop-color', colors.blue)
+    .attr('stop-color', blue)
     .attr('stop-opacity', '0');
 
   const topRightGradient = defs
@@ -40,12 +64,12 @@ export function createGradientSpectrum({
   topRightGradient
     .append('stop')
     .attr('offset', '0%')
-    .attr('stop-color', colors.red)
+    .attr('stop-color', red)
     .attr('stop-opacity', '1.0');
   topRightGradient
     .append('stop')
     .attr('offset', '60%')
-    .attr('stop-color', colors.red)
+    .attr('stop-color', red)
     .attr('stop-opacity', '0');
 
   const bottomLeftGradient = defs
@@ -58,12 +82,12 @@ export function createGradientSpectrum({
   bottomLeftGradient
     .append('stop')
     .attr('offset', '0%')
-    .attr('stop-color', colors.green)
+    .attr('stop-color', green)
     .attr('stop-opacity', '1.0');
   bottomLeftGradient
     .append('stop')
     .attr('offset', '70%')
-    .attr('stop-color', colors.green)
+    .attr('stop-color', green)
     .attr('stop-opacity', '0');
 
   const bottomRightGradient = defs
@@ -76,12 +100,12 @@ export function createGradientSpectrum({
   bottomRightGradient
     .append('stop')
     .attr('offset', '0%')
-    .attr('stop-color', colors.white)
+    .attr('stop-color', white)
     .attr('stop-opacity', '1.0');
   bottomRightGradient
     .append('stop')
     .attr('offset', '70%')
-    .attr('stop-color', colors.white)
+    .attr('stop-color', white)
     .attr('stop-opacity', '0');
 
   svg
@@ -90,7 +114,7 @@ export function createGradientSpectrum({
     .attr('y', gradientAreaTop)
     .attr('width', gradientAreaWidth)
     .attr('height', gradientAreaHeight)
-    .attr('fill', colors.backgroundGray);
+    .attr('fill', backgroundGray);
 
   svg
     .append('rect')
