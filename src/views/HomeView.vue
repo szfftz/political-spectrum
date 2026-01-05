@@ -93,14 +93,8 @@
       <div class="d-flex">
         <div class="d-none d-md-block my-width-20"></div>
         <div
-          class="d-flex justify-content-between align-items-center py-2 px-2 px-md-0 my-footer-content"
+          class="d-flex justify-content-end align-items-center py-2 px-2 px-md-0 my-footer-content"
         >
-          <div class="d-flex align-items-center gap-3">
-            <span class="my-text-sm my-text-dark-gray">
-              目前有 {{ formattedTotalCookieIds }} 人參與
-            </span>
-          </div>
-
           <div class="my-text-sm my-text-dark-gray">szfftz</div>
         </div>
         <div class="d-none d-md-block my-width-20"></div>
