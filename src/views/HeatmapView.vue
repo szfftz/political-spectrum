@@ -1057,21 +1057,11 @@
             nearestNeighborRatio.value = 0;
           }
 
-          // 找到最短和最长边
-          const minEdge = Math.min(...edgeLengths);
-          const maxEdge = Math.max(...edgeLengths);
-
-          // 使用 d3 scale 创建 opacity 映射：最小面积 -> 0%，最大面积 -> 100%
+          // 使用 d3 scale 创建 opacity 映射：最小面积 -> 0%，最大面积 -> 90%
           const opacityScale =
             minArea < maxArea
-              ? d3.scaleLinear().domain([minArea, maxArea]).range([0, 1])
-              : d3.scaleLinear().domain([minArea, minArea]).range([0, 1]);
-
-          // 使用 d3 scale 创建边长 opacity 映射：最短边 -> 100%，最长边 -> 0%
-          const edgeOpacityScale =
-            minEdge < maxEdge
-              ? d3.scaleLinear().domain([minEdge, maxEdge]).range([1, 0])
-              : d3.scaleLinear().domain([minEdge, minEdge]).range([1, 1]);
+              ? d3.scaleLinear().domain([minArea, maxArea]).range([0, 0.9])
+              : d3.scaleLinear().domain([minArea, minArea]).range([0, 0.9]);
 
           // 绘制填充的三角形（在三角剖分下方）
           delaunayFillGroup = svg.append('g').attr('class', 'delaunay-fill');
@@ -1137,7 +1127,7 @@
           }
 
           triangleData.forEach((triangle) => {
-            const strokeOpacity = edgeOpacityScale(triangle.maxEdge);
+            const strokeOpacity = 0.5;
             delaunayGroup
               .append('polygon')
               .attr(
