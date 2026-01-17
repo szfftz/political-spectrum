@@ -812,7 +812,8 @@
               .attr('height', cellHeight)
               .attr('fill', colors.backgroundGray)
               .attr('fill-opacity', opacity)
-              .attr('stroke', 'none')
+              .attr('stroke', colors.backgroundGray)
+              .attr('stroke-opacity', opacity)
               .attr('data-point-count', pointCount)
               .on('mouseover', function (event) {
                 if (tooltip.value) {
@@ -854,7 +855,7 @@
               .attr('width', cellWidth)
               .attr('height', cellHeight)
               .attr('fill', fillColor)
-              .attr('stroke', 'none')
+              .attr('stroke', fillColor)
               .attr('data-point-count', pointCount)
               .on('mouseover', function (event) {
                 if (tooltip.value) {
@@ -1361,7 +1362,7 @@
               .append('circle')
               .attr('cx', point.x)
               .attr('cy', point.y)
-              .attr('r', 4)
+              .attr('r', '2pt')
               .attr('fill', color)
               .attr('opacity', 0.8);
           });
