@@ -485,7 +485,7 @@
         router.push('/');
       };
 
-      onMounted(() => {
+      onMounted(async () => {
         const isLocalhost =
           window.location.hostname === 'localhost' ||
           window.location.hostname === '127.0.0.1' ||
@@ -493,7 +493,7 @@
 
         const cookieId = cookieUtils.get('political-spectrum_id');
         if (!cookieId && !isLocalhost) {
-          router.push('/');
+          await router.push('/');
           return;
         }
 

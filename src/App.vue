@@ -1,5 +1,6 @@
 <script>
   import { onMounted, onUnmounted } from 'vue';
+  import { useRoute } from 'vue-router';
 
   export default {
     name: 'App',
@@ -7,6 +8,7 @@
     components: {},
 
     setup() {
+      const route = useRoute();
       const setViewportHeight = () => {
         const vh = window.innerHeight * 0.01;
         document.documentElement.style.setProperty('--vh', `${vh}px`);
@@ -35,10 +37,14 @@
       onUnmounted(() => {
         window.removeEventListener('resize', handleResize);
         window.removeEventListener('orientationchange', setViewportHeight);
-        document.addEventListener('visibilitychange', setViewportHeight);
+        document.removeEventListener('visibilitychange', setViewportHeight);
+        if (resizeTimer) {
+          clearTimeout(resizeTimer);
+        }
       });
 
       return {
+        route,
       };
     },
   };
@@ -47,7 +53,7 @@
 <template>
   <div class="app-root d-flex flex-column" style="height: calc(var(--vh, 1vh) * 100); overflow: hidden">
     <div class="d-flex flex-column overflow-hidden" style="flex: 1; min-height: 0">
-      <router-view />
+      <router-view :key="route.path" />
     </div>
   </div>
 </template>

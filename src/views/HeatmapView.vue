@@ -29,7 +29,8 @@
               {{ selectedName ? `${selectedName}的光譜` : '政治人物的光譜' }}
             </h1>
             <div class="my-text-sm my-text-dark-gray pt-3">
-              <i class="fa-solid fa-diamond my-diamond-icon"></i> 中心位置
+              <i class="fa-solid fa-diamond my-diamond-icon"></i> 中心位置 | 三角形面積平均：
+              {{ averageTriangleArea.toFixed(2) }}
             </div>
           </div>
         </div>
@@ -272,6 +273,7 @@
       const showDataPoints = ref(true);
       const showDelaunay = ref(false);
       const showDelaunayFill = ref(false);
+      const averageTriangleArea = ref(0);
       let svg = null;
       let cellGroup = null;
       let colorGridGroup = null;
@@ -799,6 +801,13 @@
           const minArea = Math.min(...triangleAreas);
           const maxArea = Math.max(...triangleAreas);
 
+          // 计算平均面积
+          const avgArea =
+            triangleAreas.length > 0
+              ? triangleAreas.reduce((sum, area) => sum + area, 0) / triangleAreas.length
+              : 0;
+          averageTriangleArea.value = avgArea;
+
           // 找到最短和最长边
           const minEdge = Math.min(...edgeLengths);
           const maxEdge = Math.max(...edgeLengths);
@@ -1075,6 +1084,7 @@
         showDataPoints,
         showDelaunay,
         showDelaunayFill,
+        averageTriangleArea,
         loading,
         error,
         goHome,
