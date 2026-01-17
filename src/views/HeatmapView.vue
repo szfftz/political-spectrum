@@ -30,7 +30,8 @@
             </h1>
             <div class="my-text-sm my-text-dark-gray pt-3">
               <i class="fa-solid fa-diamond my-diamond-icon"></i> 中心位置 | 三角形面積平均：
-              {{ averageTriangleArea.toFixed(2) }}
+              {{ averageTriangleArea.toFixed(2) }} | Nearest Neighbor Ratio (NNR):
+              {{ nearestNeighborRatio.toFixed(3) }}
             </div>
           </div>
         </div>
@@ -64,14 +65,7 @@
               @click="toggleDataPoints"
               type="button"
             >
-              <div
-                class="d-flex align-items-center justify-content-center rounded-circle mt-2 my-size-32 my-border-dark-gray"
-              >
-                <i :class="showDataPoints ? 'fas fa-eye' : 'fas fa-eye-slash'"></i>
-              </div>
-              <span class="mt-2" style="text-align: center">{{
-                showDataPoints ? '隱藏黑點' : '顯示黑點'
-              }}</span>
+              <span style="text-align: center">{{ showDataPoints ? '隱藏黑點' : '顯示黑點' }}</span>
             </button>
             <button
               class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
@@ -79,14 +73,7 @@
               @click="toggleSDE"
               type="button"
             >
-              <div
-                class="d-flex align-items-center justify-content-center rounded-circle mt-2 my-size-32 my-border-dark-gray"
-              >
-                <i :class="showSDE ? 'fas fa-eye' : 'fas fa-eye-slash'"></i>
-              </div>
-              <span class="mt-2" style="text-align: center">{{
-                showSDE ? '隱藏橢圓' : '顯示橢圓'
-              }}</span>
+              <span style="text-align: center">{{ showSDE ? '隱藏橢圓' : '顯示橢圓' }}</span>
             </button>
             <button
               class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
@@ -94,14 +81,7 @@
               @click="toggleDelaunay"
               type="button"
             >
-              <div
-                class="d-flex align-items-center justify-content-center rounded-circle mt-2 my-size-32 my-border-dark-gray"
-              >
-                <i :class="showDelaunay ? 'fas fa-eye' : 'fas fa-eye-slash'"></i>
-              </div>
-              <span class="mt-2" style="text-align: center">{{
-                showDelaunay ? '隱藏三角' : '顯示三角'
-              }}</span>
+              <span style="text-align: center">{{ showDelaunay ? '隱藏三角' : '顯示三角' }}</span>
             </button>
             <button
               class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
@@ -109,12 +89,7 @@
               @click="toggleDelaunayFill"
               type="button"
             >
-              <div
-                class="d-flex align-items-center justify-content-center rounded-circle mt-2 my-size-32 my-border-dark-gray"
-              >
-                <i :class="showDelaunayFill ? 'fas fa-eye' : 'fas fa-eye-slash'"></i>
-              </div>
-              <span class="mt-2" style="text-align: center">{{
+              <span style="text-align: center">{{
                 showDelaunayFill ? '隱藏三角填' : '顯示三角填'
               }}</span>
             </button>
@@ -124,12 +99,7 @@
               @click="toggleDarkGrid"
               type="button"
             >
-              <div
-                class="d-flex align-items-center justify-content-center rounded-circle mt-2 my-size-32 my-border-dark-gray"
-              >
-                <i :class="showDarkGrid ? 'fas fa-eye' : 'fas fa-eye-slash'"></i>
-              </div>
-              <span class="mt-2" style="text-align: center">{{
+              <span style="text-align: center">{{
                 showDarkGrid ? '隱藏黑網格' : '顯示黑網格'
               }}</span>
             </button>
@@ -139,14 +109,7 @@
               @click="toggleGrid"
               type="button"
             >
-              <div
-                class="d-flex align-items-center justify-content-center rounded-circle mt-2 my-size-32 my-border-dark-gray"
-              >
-                <i :class="showGrid ? 'fas fa-eye' : 'fas fa-eye-slash'"></i>
-              </div>
-              <span class="mt-2" style="text-align: center">{{
-                showGrid ? '隱藏白網格' : '顯示白網格'
-              }}</span>
+              <span style="text-align: center">{{ showGrid ? '隱藏白網格' : '顯示白網格' }}</span>
             </button>
             <button
               class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
@@ -154,12 +117,7 @@
               @click="toggleColorGrid"
               type="button"
             >
-              <div
-                class="d-flex align-items-center justify-content-center rounded-circle mt-2 my-size-32 my-border-dark-gray"
-              >
-                <i :class="showColorGrid ? 'fas fa-eye' : 'fas fa-eye-slash'"></i>
-              </div>
-              <span class="mt-2" style="text-align: center">{{
+              <span style="text-align: center">{{
                 showColorGrid ? '隱藏色網格' : '顯示色網格'
               }}</span>
             </button>
@@ -169,14 +127,7 @@
               @click="toggleGradient"
               type="button"
             >
-              <div
-                class="d-flex align-items-center justify-content-center rounded-circle mt-2 my-size-32 my-border-dark-gray"
-              >
-                <i :class="showGradient ? 'fas fa-eye' : 'fas fa-eye-slash'"></i>
-              </div>
-              <span class="mt-2" style="text-align: center">{{
-                showGradient ? '隱藏漸層' : '顯示漸層'
-              }}</span>
+              <span style="text-align: center">{{ showGradient ? '隱藏漸層' : '顯示漸層' }}</span>
             </button>
           </div>
         </div>
@@ -290,6 +241,7 @@
       const showDelaunayFill = ref(false);
       const showSDE = ref(false);
       const averageTriangleArea = ref(0);
+      const nearestNeighborRatio = ref(0);
       let svg = null;
       let cellGroup = null;
       let colorGridGroup = null;
@@ -601,8 +553,8 @@
         }
 
         // 绘制网格
-        const gridColumns = 14;
-        const gridRows = 17;
+        const gridColumns = 20;
+        const gridRows = 20;
         const cellWidth = gradientAreaWidth / gridColumns;
         const cellHeight = gradientAreaHeight / gridRows;
 
@@ -825,6 +777,48 @@
               ? triangleAreas.reduce((sum, area) => sum + area, 0) / triangleAreas.length
               : 0;
           averageTriangleArea.value = avgArea;
+
+          // 计算 Nearest Neighbor Ratio (NNR)
+          if (points.length >= 2) {
+            // 计算每个点到其最近邻点的距离
+            const nearestNeighborDistances = [];
+            for (let i = 0; i < points.length; i++) {
+              let minDist = Infinity;
+              for (let j = 0; j < points.length; j++) {
+                if (i !== j) {
+                  const dx = points[i].x - points[j].x;
+                  const dy = points[i].y - points[j].y;
+                  const dist = Math.sqrt(dx * dx + dy * dy);
+                  if (dist < minDist) {
+                    minDist = dist;
+                  }
+                }
+              }
+              if (minDist !== Infinity) {
+                nearestNeighborDistances.push(minDist);
+              }
+            }
+
+            // 计算平均最近邻距离
+            const avgObservedDistance =
+              nearestNeighborDistances.length > 0
+                ? nearestNeighborDistances.reduce((sum, dist) => sum + dist, 0) /
+                  nearestNeighborDistances.length
+                : 0;
+
+            // 计算期望最近邻距离
+            // 期望距离 = 1 / (2 * sqrt(密度))
+            // 密度 = 点的数量 / 面积
+            const area = gradientAreaWidth * gradientAreaHeight;
+            const density = points.length / area;
+            const expectedDistance = density > 0 ? 1 / (2 * Math.sqrt(density)) : 0;
+
+            // 计算 NNR
+            const nnr = expectedDistance > 0 ? avgObservedDistance / expectedDistance : 0;
+            nearestNeighborRatio.value = nnr;
+          } else {
+            nearestNeighborRatio.value = 0;
+          }
 
           // 找到最短和最长边
           const minEdge = Math.min(...edgeLengths);
@@ -1186,6 +1180,7 @@
         showDelaunayFill,
         showSDE,
         averageTriangleArea,
+        nearestNeighborRatio,
         loading,
         error,
         goHome,
