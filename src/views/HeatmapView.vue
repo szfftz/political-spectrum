@@ -246,6 +246,16 @@
             <button
               class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
               style="min-width: 100px"
+              @click="toggleDarkGrayLayer"
+              type="button"
+            >
+              <span style="text-align: center">{{
+                showDarkGrayLayer ? '隱藏深灰層' : '顯示深灰層'
+              }}</span>
+            </button>
+            <button
+              class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
+              style="min-width: 100px"
               @click="downloadData"
               type="button"
             >
@@ -365,6 +375,7 @@
       const showGrid = ref(false);
       const showColorGrid = ref(false);
       const showGradient = ref(true);
+      const showDarkGrayLayer = ref(false);
       const showDarkGrid = ref(false);
       const showDataPoints = ref(true);
       const showColorPoints = ref(false);
@@ -387,6 +398,7 @@
       let cellGroup = null;
       let colorGridGroup = null;
       let gradientGroup = null;
+      let darkGrayLayerGroup = null;
       let darkGridGroup = null;
       let pointsGroup = null;
       let colorPointsGroup = null;
@@ -729,6 +741,7 @@
         cellGroup = null;
         colorGridGroup = null;
         gradientGroup = null;
+        darkGrayLayerGroup = null;
         darkGridGroup = null;
         pointsGroup = null;
         colorPointsGroup = null;
@@ -763,6 +776,19 @@
           .attr('height', containerHeight)
           .attr('class', 'd-block position-relative w-100 h-100')
           .style('pointer-events', 'none');
+
+        // 绘制深灰色图层（最下面）
+        darkGrayLayerGroup = svg.append('g').attr('class', 'dark-gray-layer');
+        darkGrayLayerGroup
+          .append('rect')
+          .attr('x', gradientAreaLeft)
+          .attr('y', gradientAreaTop)
+          .attr('width', gradientAreaWidth)
+          .attr('height', gradientAreaHeight)
+          .attr('fill', colors.darkGray);
+        if (darkGrayLayerGroup) {
+          darkGrayLayerGroup.style('display', showDarkGrayLayer.value ? 'block' : 'none');
+        }
 
         gradientGroup = createGradientSpectrum({
           svg,
@@ -1948,6 +1974,13 @@
         }
       };
 
+      const toggleDarkGrayLayer = () => {
+        showDarkGrayLayer.value = !showDarkGrayLayer.value;
+        if (darkGrayLayerGroup) {
+          darkGrayLayerGroup.style('display', showDarkGrayLayer.value ? 'block' : 'none');
+        }
+      };
+
       onMounted(() => {
         const isLocalhost =
           window.location.hostname === 'localhost' ||
@@ -2026,6 +2059,7 @@
         showGrid,
         showColorGrid,
         showGradient,
+        showDarkGrayLayer,
         showDarkGrid,
         showDataPoints,
         showColorPoints,
@@ -2056,6 +2090,7 @@
         toggleGrid,
         toggleColorGrid,
         toggleGradient,
+        toggleDarkGrayLayer,
         toggleDarkGrid,
         toggleDataPoints,
         toggleColorPoints,
