@@ -29,7 +29,7 @@
               {{ selectedName ? `${selectedName}的光譜` : '政治人物的光譜' }}
             </h1>
             <div class="my-text-sm my-text-dark-gray pt-3">
-              <i class="fa-solid fa-diamond my-diamond-icon"></i> 是你放的位置
+              <i class="fa-solid fa-diamond my-diamond-icon"></i> 中心位置
             </div>
           </div>
         </div>
@@ -265,13 +265,13 @@
       const rightSection = ref(null);
       const rightSectionWidth = ref(0);
       const tooltip = ref(null);
-      const showGrid = ref(true);
-      const showColorGrid = ref(true);
+      const showGrid = ref(false);
+      const showColorGrid = ref(false);
       const showGradient = ref(true);
-      const showDarkGrid = ref(true);
+      const showDarkGrid = ref(false);
       const showDataPoints = ref(true);
-      const showDelaunay = ref(true);
-      const showDelaunayFill = ref(true);
+      const showDelaunay = ref(false);
+      const showDelaunayFill = ref(false);
       let svg = null;
       let cellGroup = null;
       let colorGridGroup = null;
@@ -763,8 +763,9 @@
           const delaunay = Delaunay.from(pointsArray);
           const triangles = delaunay.triangles;
 
-          // 计算每个三角形的面积
+          // 计算每个三角形的面积和边长
           const triangleAreas = [];
+          const edgeLengths = [];
           const triangleData = [];
           for (let i = 0; i < triangles.length; i += 3) {
             const i0 = triangles[i];
@@ -780,19 +781,39 @@
 
             // 计算三角形面积：|(x1-x0)(y2-y0) - (x2-x0)(y1-y0)| / 2
             const area = Math.abs((x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0)) / 2;
+
+            // 计算三条边的长度
+            const edge1 = Math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2);
+            const edge2 = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+            const edge3 = Math.sqrt((x0 - x2) ** 2 + (y0 - y2) ** 2);
+
+            // 使用最长边作为代表
+            const maxEdge = Math.max(edge1, edge2, edge3);
+
             triangleAreas.push(area);
-            triangleData.push({ x0, y0, x1, y1, x2, y2, area });
+            edgeLengths.push(maxEdge);
+            triangleData.push({ x0, y0, x1, y1, x2, y2, area, maxEdge });
           }
 
           // 找到最小和最大面积
           const minArea = Math.min(...triangleAreas);
           const maxArea = Math.max(...triangleAreas);
 
+          // 找到最短和最长边
+          const minEdge = Math.min(...edgeLengths);
+          const maxEdge = Math.max(...edgeLengths);
+
           // 使用 d3 scale 创建 opacity 映射：最小面积 -> 0%，最大面积 -> 100%
           const opacityScale =
             minArea < maxArea
               ? d3.scaleLinear().domain([minArea, maxArea]).range([0, 1])
               : d3.scaleLinear().domain([minArea, minArea]).range([0, 1]);
+
+          // 使用 d3 scale 创建边长 opacity 映射：最短边 -> 100%，最长边 -> 0%
+          const edgeOpacityScale =
+            minEdge < maxEdge
+              ? d3.scaleLinear().domain([minEdge, maxEdge]).range([1, 0])
+              : d3.scaleLinear().domain([minEdge, minEdge]).range([1, 1]);
 
           // 绘制填充的三角形（在三角剖分下方）
           delaunayFillGroup = svg.append('g').attr('class', 'delaunay-fill');
@@ -858,6 +879,7 @@
           }
 
           triangleData.forEach((triangle) => {
+            const strokeOpacity = edgeOpacityScale(triangle.maxEdge);
             delaunayGroup
               .append('polygon')
               .attr(
@@ -867,7 +889,7 @@
               .attr('fill', 'none')
               .attr('stroke', colors.darkGray)
               .attr('stroke-width', 0.5)
-              .attr('opacity', 0.3);
+              .attr('stroke-opacity', strokeOpacity);
           });
 
           // 绘制数据点（在最上面）
@@ -889,17 +911,29 @@
         if (diamondContainer.value && contentContainer.value) {
           diamondContainer.value.innerHTML = '';
 
-          if (selectedName.value && cookieDataPoints.value.length > 0) {
-            const selectedCookiePoint = cookieDataPoints.value.find(
-              (item) => item.name === selectedName.value
-            );
+          // 计算所有点的平均位置
+          if (allDataPoints.value.length > 0) {
+            let sumX = 0;
+            let sumY = 0;
+            let validCount = 0;
 
-            if (selectedCookiePoint) {
-              const xPercent = parseFloat(selectedCookiePoint.x);
-              const yPercent = parseFloat(selectedCookiePoint.y);
+            allDataPoints.value.forEach((item) => {
+              const x = parseFloat(item.x);
+              const y = parseFloat(item.y);
 
-              const xInContent = gradientAreaLeft + (xPercent / 100) * gradientAreaWidth;
-              const yInContent = gradientAreaTop + (yPercent / 100) * gradientAreaHeight;
+              if (!isNaN(x) && !isNaN(y) && x >= 0 && y >= 0 && x <= 100 && y <= 100) {
+                sumX += x;
+                sumY += y;
+                validCount++;
+              }
+            });
+
+            if (validCount > 0) {
+              const avgXPercent = sumX / validCount;
+              const avgYPercent = sumY / validCount;
+
+              const xInContent = gradientAreaLeft + (avgXPercent / 100) * gradientAreaWidth;
+              const yInContent = gradientAreaTop + (avgYPercent / 100) * gradientAreaHeight;
 
               const contentRect = contentContainer.value.getBoundingClientRect();
 
@@ -916,7 +950,6 @@
               diamondElement.style.top = `${y - iconOffset}px`;
               diamondElement.style.width = `${iconSize}px`;
               diamondElement.style.height = `${iconSize}px`;
-              diamondElement.setAttribute('data-name', selectedCookiePoint.name);
 
               const iconElement = document.createElement('i');
               iconElement.className = 'fa-solid fa-diamond my-diamond-icon';
