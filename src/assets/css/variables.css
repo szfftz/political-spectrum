@@ -15,11 +15,11 @@
   --my-color-red: #dd3f33;
   --my-color-white: #f2f2f2; */
 
-  --my-color-blue: hsl(210, 85%, 65%);
-  --my-color-green: hsl(150, 85%, 65%);
-  --my-color-red: hsl(0, 85%, 65%);
-  --my-color-white: hsl(210, 60%, 92%);
-  --my-color-yellow: hsl(60, 98%, 63%);
+  --my-color-blue: hsl(210, 85%, 65%); /* #4A9FE8 */
+  --my-color-green: hsl(150, 85%, 65%); /* #4AE8A9 */
+  --my-color-red: hsl(0, 85%, 65%); /* #E84A4A */
+  --my-color-white: hsl(210, 60%, 92%); /* #D8E4F0 */
+  --my-color-yellow: hsl(60, 98%, 63%); /* #FDFD4F */
 
   --my-color-data-point: #ffffff;
 

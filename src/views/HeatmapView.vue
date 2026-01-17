@@ -30,8 +30,7 @@
             </h1>
             <div class="my-text-sm my-text-dark-gray pt-3">
               <i class="fa-solid fa-diamond my-diamond-icon"></i> 中心位置 | 三角形面積平均：
-              {{ averageTriangleArea.toFixed(2) }} | Nearest Neighbor Ratio (NNR):
-              {{ nearestNeighborRatio.toFixed(3) }}
+              {{ averageTriangleArea.toFixed(2) }} | NNR: {{ nearestNeighborRatio.toFixed(3) }}
             </div>
           </div>
         </div>
@@ -58,6 +57,24 @@
                 <i class="fas fa-arrow-left"></i>
               </div>
               <span class="mt-2">返回首頁</span>
+            </button>
+            <button
+              class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
+              style="min-width: 100px"
+              @click="toggleCenterPoint"
+              type="button"
+            >
+              <span style="text-align: center">{{
+                showCenterPoint ? '隱藏中心點' : '顯示中心點'
+              }}</span>
+            </button>
+            <button
+              class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
+              style="min-width: 100px"
+              @click="toggleDBSCAN"
+              type="button"
+            >
+              <span style="text-align: center">{{ showDBSCAN ? '隱藏分群' : '顯示分群' }}</span>
             </button>
             <button
               class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
@@ -240,6 +257,8 @@
       const showDelaunay = ref(false);
       const showDelaunayFill = ref(false);
       const showSDE = ref(false);
+      const showDBSCAN = ref(false);
+      const showCenterPoint = ref(true);
       const averageTriangleArea = ref(0);
       const nearestNeighborRatio = ref(0);
       let svg = null;
@@ -251,6 +270,7 @@
       let delaunayGroup = null;
       let delaunayFillGroup = null;
       let sdeGroup = null;
+      let dbscanGroup = null;
       let resizeTimer = null;
       const loading = ref(false);
       const error = ref(null);
@@ -515,6 +535,7 @@
         delaunayGroup = null;
         delaunayFillGroup = null;
         sdeGroup = null;
+        dbscanGroup = null;
 
         const containerRect = contentContainer.value.getBoundingClientRect();
         const containerWidth = containerRect.width;
@@ -988,6 +1009,113 @@
             }
           }
 
+          // DBSCAN 分群
+          if (points.length >= 2) {
+            // 计算 eps（邻域半径）- 使用平均最近邻距离的 1.5 倍
+            let avgNearestDistance = 0;
+            for (let i = 0; i < points.length; i++) {
+              let minDist = Infinity;
+              for (let j = 0; j < points.length; j++) {
+                if (i !== j) {
+                  const dx = points[i].x - points[j].x;
+                  const dy = points[i].y - points[j].y;
+                  const dist = Math.sqrt(dx * dx + dy * dy);
+                  if (dist < minDist) {
+                    minDist = dist;
+                  }
+                }
+              }
+              if (minDist !== Infinity) {
+                avgNearestDistance += minDist;
+              }
+            }
+            avgNearestDistance /= points.length;
+            const eps = avgNearestDistance * 3;
+            const minPts = 4;
+
+            // DBSCAN 算法
+            const labels = new Array(points.length).fill(-1); // -1 表示噪声点
+            let clusterId = 0;
+            const clusterColors = [
+              colors.blue,
+              colors.green,
+              colors.red,
+              colors.white,
+              colors.yellow,
+            ];
+
+            // 计算两点之间的距离
+            const distance = (p1, p2) => {
+              const dx = p1.x - p2.x;
+              const dy = p1.y - p2.y;
+              return Math.sqrt(dx * dx + dy * dy);
+            };
+
+            // 获取邻域内的点
+            const getNeighbors = (pointIndex) => {
+              const neighbors = [];
+              for (let i = 0; i < points.length; i++) {
+                if (i !== pointIndex && distance(points[pointIndex], points[i]) <= eps) {
+                  neighbors.push(i);
+                }
+              }
+              return neighbors;
+            };
+
+            // 扩展群
+            const expandCluster = (pointIndex, neighbors, clusterId) => {
+              labels[pointIndex] = clusterId;
+              let i = 0;
+              while (i < neighbors.length) {
+                const neighborIndex = neighbors[i];
+                if (labels[neighborIndex] === -1) {
+                  labels[neighborIndex] = clusterId;
+                  const neighborNeighbors = getNeighbors(neighborIndex);
+                  if (neighborNeighbors.length >= minPts) {
+                    neighbors.push(...neighborNeighbors);
+                  }
+                } else if (labels[neighborIndex] === 0) {
+                  labels[neighborIndex] = clusterId;
+                }
+                i++;
+              }
+            };
+
+            // 执行 DBSCAN
+            for (let i = 0; i < points.length; i++) {
+              if (labels[i] !== -1) continue;
+
+              const neighbors = getNeighbors(i);
+              if (neighbors.length < minPts) {
+                labels[i] = -1; // 噪声点
+              } else {
+                expandCluster(i, neighbors, clusterId);
+                clusterId++;
+              }
+            }
+
+            // 绘制 DBSCAN 分群（在数据点下方）
+            dbscanGroup = svg.append('g').attr('class', 'dbscan-clusters');
+            if (dbscanGroup) {
+              dbscanGroup.style('display', showDBSCAN.value ? 'block' : 'none');
+            }
+
+            points.forEach((point, index) => {
+              const clusterId = labels[index];
+              if (clusterId >= 0) {
+                // 有群的点
+                const colorIndex = clusterId % clusterColors.length;
+                dbscanGroup
+                  .append('circle')
+                  .attr('cx', point.x)
+                  .attr('cy', point.y)
+                  .attr('r', 8)
+                  .attr('fill', clusterColors[colorIndex])
+                  .attr('opacity', 0.7);
+              }
+            });
+          }
+
           // 绘制数据点（在最上面）
           pointsGroup = svg.append('g').attr('class', 'data-points');
           if (pointsGroup) {
@@ -1008,7 +1136,7 @@
           diamondContainer.value.innerHTML = '';
 
           // 计算所有点的平均位置
-          if (allDataPoints.value.length > 0) {
+          if (showCenterPoint.value && allDataPoints.value.length > 0) {
             let sumX = 0;
             let sumY = 0;
             let validCount = 0;
@@ -1071,6 +1199,23 @@
 
       const goHome = () => {
         router.push('/');
+      };
+
+      const toggleCenterPoint = () => {
+        showCenterPoint.value = !showCenterPoint.value;
+        // 重新绘制以更新中心点的显示
+        if (!loading.value) {
+          setTimeout(() => {
+            drawVisualization();
+          }, 100);
+        }
+      };
+
+      const toggleDBSCAN = () => {
+        showDBSCAN.value = !showDBSCAN.value;
+        if (dbscanGroup) {
+          dbscanGroup.style('display', showDBSCAN.value ? 'block' : 'none');
+        }
       };
 
       const toggleDataPoints = () => {
@@ -1179,6 +1324,8 @@
         showDelaunay,
         showDelaunayFill,
         showSDE,
+        showDBSCAN,
+        showCenterPoint,
         averageTriangleArea,
         nearestNeighborRatio,
         loading,
@@ -1192,6 +1339,8 @@
         toggleDelaunay,
         toggleDelaunayFill,
         toggleSDE,
+        toggleDBSCAN,
+        toggleCenterPoint,
         POLITICIAN_NAMES,
         selectedName,
         handleNameClick,
