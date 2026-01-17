@@ -800,6 +800,44 @@
             delaunayFillGroup.style('display', showDelaunayFill.value ? 'block' : 'none');
           }
 
+          // 创建一个唯一的 mask ID
+          const maskId = `triangle-mask-${Date.now()}`;
+          const defs = svg.select('defs').empty() ? svg.append('defs') : svg.select('defs');
+
+          // 创建 mask：白色区域显示，黑色区域隐藏
+          const mask = defs.append('mask').attr('id', maskId);
+
+          // mask 的背景设为白色（显示）
+          mask
+            .append('rect')
+            .attr('x', gradientAreaLeft)
+            .attr('y', gradientAreaTop)
+            .attr('width', gradientAreaWidth)
+            .attr('height', gradientAreaHeight)
+            .attr('fill', 'white');
+
+          // 将所有三角形区域设为黑色（隐藏）
+          triangleData.forEach((triangle) => {
+            mask
+              .append('polygon')
+              .attr(
+                'points',
+                `${triangle.x0},${triangle.y0} ${triangle.x1},${triangle.y1} ${triangle.x2},${triangle.y2}`
+              )
+              .attr('fill', 'black');
+          });
+
+          // 绘制背景矩形（只在三角形外显示）
+          delaunayFillGroup
+            .append('rect')
+            .attr('x', gradientAreaLeft)
+            .attr('y', gradientAreaTop)
+            .attr('width', gradientAreaWidth)
+            .attr('height', gradientAreaHeight)
+            .attr('fill', colors.backgroundGray)
+            .attr('mask', `url(#${maskId})`);
+
+          // 绘制三角形（带有根据面积计算的 opacity）
           triangleData.forEach((triangle) => {
             const opacity = opacityScale(triangle.area);
             delaunayFillGroup
