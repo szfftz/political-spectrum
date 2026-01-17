@@ -29,8 +29,45 @@
               {{ selectedName ? `${selectedName}的光譜` : '政治人物的光譜' }}
             </h1>
             <div class="my-text-sm my-text-dark-gray pt-3">
-              <i class="fa-solid fa-diamond my-diamond-icon"></i> 中心位置 | 三角形面積平均：
-              {{ averageTriangleArea.toFixed(2) }} | NNR: {{ nearestNeighborRatio.toFixed(3) }}
+              <div class="d-flex align-items-center mb-1">
+                <span class="d-flex align-items-center me-2">
+                  <i
+                    class="fa-solid fa-diamond me-1"
+                    style="color: var(--my-color-yellow); font-size: 0.875rem"
+                  ></i>
+                  <span
+                    >平均中心 ({{ meanCenter.x.toFixed(2) }}, {{ meanCenter.y.toFixed(2) }})</span
+                  >
+                </span>
+                <span class="mx-2">|</span>
+                <span class="d-flex align-items-center me-2">
+                  <i
+                    class="fa-solid fa-diamond me-1"
+                    style="color: var(--my-color-red); font-size: 0.875rem"
+                  ></i>
+                  <span
+                    >中位數中心 ({{ medianCenter.x.toFixed(2) }},
+                    {{ medianCenter.y.toFixed(2) }})</span
+                  >
+                </span>
+                <span class="mx-2">|</span>
+                <span class="d-flex align-items-center me-2">
+                  <i
+                    class="fa-solid fa-diamond me-1"
+                    style="color: var(--my-color-green); font-size: 0.875rem"
+                  ></i>
+                  <span
+                    >中心要素 ({{ centralFeature.x.toFixed(2) }},
+                    {{ centralFeature.y.toFixed(2) }})</span
+                  >
+                </span>
+              </div>
+              <div class="d-flex align-items-center">
+                <span
+                  >三角形面積平均：{{ averageTriangleArea.toFixed(2) }} | NNR:
+                  {{ nearestNeighborRatio.toFixed(3) }}</span
+                >
+              </div>
             </div>
           </div>
         </div>
@@ -61,6 +98,14 @@
             <button
               class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
               style="min-width: 100px"
+              @click="toggleDataPoints"
+              type="button"
+            >
+              <span style="text-align: center">{{ showDataPoints ? '隱藏黑點' : '顯示黑點' }}</span>
+            </button>
+            <button
+              class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
+              style="min-width: 100px"
               @click="toggleCenterPoint"
               type="button"
             >
@@ -79,10 +124,10 @@
             <button
               class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
               style="min-width: 100px"
-              @click="toggleDataPoints"
+              @click="toggleMST"
               type="button"
             >
-              <span style="text-align: center">{{ showDataPoints ? '隱藏黑點' : '顯示黑點' }}</span>
+              <span style="text-align: center">{{ showMST ? '隱藏MST' : '顯示MST' }}</span>
             </button>
             <button
               class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
@@ -145,6 +190,14 @@
               type="button"
             >
               <span style="text-align: center">{{ showGradient ? '隱藏漸層' : '顯示漸層' }}</span>
+            </button>
+            <button
+              class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
+              style="min-width: 100px"
+              @click="downloadImage"
+              type="button"
+            >
+              <span style="text-align: center">下載圖片</span>
             </button>
           </div>
         </div>
@@ -258,9 +311,13 @@
       const showDelaunayFill = ref(false);
       const showSDE = ref(false);
       const showDBSCAN = ref(false);
+      const showMST = ref(false);
       const showCenterPoint = ref(true);
       const averageTriangleArea = ref(0);
       const nearestNeighborRatio = ref(0);
+      const meanCenter = ref({ x: 0, y: 0 });
+      const medianCenter = ref({ x: 0, y: 0 });
+      const centralFeature = ref({ x: 0, y: 0 });
       let svg = null;
       let cellGroup = null;
       let colorGridGroup = null;
@@ -271,6 +328,7 @@
       let delaunayFillGroup = null;
       let sdeGroup = null;
       let dbscanGroup = null;
+      let mstGroup = null;
       let resizeTimer = null;
       const loading = ref(false);
       const error = ref(null);
@@ -536,6 +594,7 @@
         delaunayFillGroup = null;
         sdeGroup = null;
         dbscanGroup = null;
+        mstGroup = null;
 
         const containerRect = contentContainer.value.getBoundingClientRect();
         const containerWidth = containerRect.width;
@@ -1116,6 +1175,67 @@
             });
           }
 
+          // 绘制 MST（最小生成树）
+          if (points.length > 1) {
+            // 使用 Kruskal 算法计算 MST
+            const edges = [];
+            for (let i = 0; i < points.length; i++) {
+              for (let j = i + 1; j < points.length; j++) {
+                const dx = points[i].x - points[j].x;
+                const dy = points[i].y - points[j].y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                edges.push({ from: i, to: j, distance });
+              }
+            }
+
+            // 按距离排序
+            edges.sort((a, b) => a.distance - b.distance);
+
+            // Union-Find 数据结构
+            const parent = Array.from({ length: points.length }, (_, i) => i);
+            const find = (x) => {
+              if (parent[x] !== x) {
+                parent[x] = find(parent[x]);
+              }
+              return parent[x];
+            };
+            const union = (x, y) => {
+              const rootX = find(x);
+              const rootY = find(y);
+              if (rootX !== rootY) {
+                parent[rootX] = rootY;
+                return true;
+              }
+              return false;
+            };
+
+            // Kruskal 算法
+            const mstEdges = [];
+            for (const edge of edges) {
+              if (union(edge.from, edge.to)) {
+                mstEdges.push(edge);
+                if (mstEdges.length === points.length - 1) break;
+              }
+            }
+
+            // 绘制 MST
+            mstGroup = svg.append('g').attr('class', 'mst');
+            if (mstGroup) {
+              mstGroup.style('display', showMST.value ? 'block' : 'none');
+            }
+            mstEdges.forEach((edge) => {
+              mstGroup
+                .append('line')
+                .attr('x1', points[edge.from].x)
+                .attr('y1', points[edge.from].y)
+                .attr('x2', points[edge.to].x)
+                .attr('y2', points[edge.to].y)
+                .attr('stroke', colors.darkGray)
+                .attr('stroke-width', 1)
+                .attr('opacity', 0.5);
+            });
+          }
+
           // 绘制数据点（在最上面）
           pointsGroup = svg.append('g').attr('class', 'data-points');
           if (pointsGroup) {
@@ -1135,52 +1255,122 @@
         if (diamondContainer.value && contentContainer.value) {
           diamondContainer.value.innerHTML = '';
 
-          // 计算所有点的平均位置
+          // 计算三种中心点
           if (showCenterPoint.value && allDataPoints.value.length > 0) {
-            let sumX = 0;
-            let sumY = 0;
-            let validCount = 0;
-
+            const validPoints = [];
             allDataPoints.value.forEach((item) => {
               const x = parseFloat(item.x);
               const y = parseFloat(item.y);
 
               if (!isNaN(x) && !isNaN(y) && x >= 0 && y >= 0 && x <= 100 && y <= 100) {
-                sumX += x;
-                sumY += y;
-                validCount++;
+                validPoints.push({ x, y });
               }
             });
 
-            if (validCount > 0) {
-              const avgXPercent = sumX / validCount;
-              const avgYPercent = sumY / validCount;
-
-              const xInContent = gradientAreaLeft + (avgXPercent / 100) * gradientAreaWidth;
-              const yInContent = gradientAreaTop + (avgYPercent / 100) * gradientAreaHeight;
-
+            if (validPoints.length > 0) {
               const contentRect = contentContainer.value.getBoundingClientRect();
-
-              const x = contentRect.left + xInContent;
-              const y = contentRect.top + yInContent;
-
               const iconSize = 16;
               const iconOffset = iconSize / 2;
 
-              const diamondElement = document.createElement('div');
-              diamondElement.className =
+              // 1. 平均中心（Mean Center）- 黄色
+              let sumX = 0;
+              let sumY = 0;
+              validPoints.forEach((p) => {
+                sumX += p.x;
+                sumY += p.y;
+              });
+              const meanXPercent = sumX / validPoints.length;
+              const meanYPercent = sumY / validPoints.length;
+              meanCenter.value = { x: meanXPercent, y: meanYPercent };
+              const meanXInContent = gradientAreaLeft + (meanXPercent / 100) * gradientAreaWidth;
+              const meanYInContent = gradientAreaTop + (meanYPercent / 100) * gradientAreaHeight;
+              const meanX = contentRect.left + meanXInContent;
+              const meanY = contentRect.top + meanYInContent;
+
+              const meanElement = document.createElement('div');
+              meanElement.className =
                 'position-absolute d-flex align-items-center justify-content-center';
-              diamondElement.style.left = `${x - iconOffset}px`;
-              diamondElement.style.top = `${y - iconOffset}px`;
-              diamondElement.style.width = `${iconSize}px`;
-              diamondElement.style.height = `${iconSize}px`;
+              meanElement.style.left = `${meanX - iconOffset}px`;
+              meanElement.style.top = `${meanY - iconOffset}px`;
+              meanElement.style.width = `${iconSize}px`;
+              meanElement.style.height = `${iconSize}px`;
+              const meanIcon = document.createElement('i');
+              meanIcon.className = 'fa-solid fa-diamond my-diamond-icon';
+              meanIcon.style.fontSize = `${iconSize}px`;
+              meanIcon.style.color = 'var(--my-color-yellow)';
+              meanElement.appendChild(meanIcon);
+              diamondContainer.value.appendChild(meanElement);
 
-              const iconElement = document.createElement('i');
-              iconElement.className = 'fa-solid fa-diamond my-diamond-icon';
-              iconElement.style.fontSize = `${iconSize}px`;
+              // 2. 中位数中心（Median Center）- 红色
+              const sortedX = validPoints.map((p) => p.x).sort((a, b) => a - b);
+              const sortedY = validPoints.map((p) => p.y).sort((a, b) => a - b);
+              const medianXPercent =
+                validPoints.length % 2 === 0
+                  ? (sortedX[validPoints.length / 2 - 1] + sortedX[validPoints.length / 2]) / 2
+                  : sortedX[Math.floor(validPoints.length / 2)];
+              const medianYPercent =
+                validPoints.length % 2 === 0
+                  ? (sortedY[validPoints.length / 2 - 1] + sortedY[validPoints.length / 2]) / 2
+                  : sortedY[Math.floor(validPoints.length / 2)];
+              medianCenter.value = { x: medianXPercent, y: medianYPercent };
+              const medianXInContent =
+                gradientAreaLeft + (medianXPercent / 100) * gradientAreaWidth;
+              const medianYInContent =
+                gradientAreaTop + (medianYPercent / 100) * gradientAreaHeight;
+              const medianX = contentRect.left + medianXInContent;
+              const medianY = contentRect.top + medianYInContent;
 
-              diamondElement.appendChild(iconElement);
-              diamondContainer.value.appendChild(diamondElement);
+              const medianElement = document.createElement('div');
+              medianElement.className =
+                'position-absolute d-flex align-items-center justify-content-center';
+              medianElement.style.left = `${medianX - iconOffset}px`;
+              medianElement.style.top = `${medianY - iconOffset}px`;
+              medianElement.style.width = `${iconSize}px`;
+              medianElement.style.height = `${iconSize}px`;
+              const medianIcon = document.createElement('i');
+              medianIcon.className = 'fa-solid fa-diamond my-diamond-icon';
+              medianIcon.style.fontSize = `${iconSize}px`;
+              medianIcon.style.color = 'var(--my-color-red)';
+              medianElement.appendChild(medianIcon);
+              diamondContainer.value.appendChild(medianElement);
+
+              // 3. 中心要素（Central Feature）- 绿色
+              let minTotalDistance = Infinity;
+              let centralFeatureIndex = 0;
+              validPoints.forEach((point, index) => {
+                let totalDistance = 0;
+                validPoints.forEach((otherPoint) => {
+                  const dx = point.x - otherPoint.x;
+                  const dy = point.y - otherPoint.y;
+                  totalDistance += Math.sqrt(dx * dx + dy * dy);
+                });
+                if (totalDistance < minTotalDistance) {
+                  minTotalDistance = totalDistance;
+                  centralFeatureIndex = index;
+                }
+              });
+              const centralPoint = validPoints[centralFeatureIndex];
+              centralFeature.value = { x: centralPoint.x, y: centralPoint.y };
+              const centralXInContent =
+                gradientAreaLeft + (centralPoint.x / 100) * gradientAreaWidth;
+              const centralYInContent =
+                gradientAreaTop + (centralPoint.y / 100) * gradientAreaHeight;
+              const centralX = contentRect.left + centralXInContent;
+              const centralY = contentRect.top + centralYInContent;
+
+              const centralElement = document.createElement('div');
+              centralElement.className =
+                'position-absolute d-flex align-items-center justify-content-center';
+              centralElement.style.left = `${centralX - iconOffset}px`;
+              centralElement.style.top = `${centralY - iconOffset}px`;
+              centralElement.style.width = `${iconSize}px`;
+              centralElement.style.height = `${iconSize}px`;
+              const centralIcon = document.createElement('i');
+              centralIcon.className = 'fa-solid fa-diamond my-diamond-icon';
+              centralIcon.style.fontSize = `${iconSize}px`;
+              centralIcon.style.color = 'var(--my-color-green)';
+              centralElement.appendChild(centralIcon);
+              diamondContainer.value.appendChild(centralElement);
             }
           }
         }
@@ -1209,6 +1399,82 @@
             drawVisualization();
           }, 100);
         }
+      };
+
+      const downloadImage = () => {
+        if (!svg || !contentContainer.value) return;
+
+        const containerRect = contentContainer.value.getBoundingClientRect();
+        const containerWidth = containerRect.width;
+        const containerHeight = containerRect.height;
+
+        const firstSectionWidth = calculateSideSectionWidth(containerWidth);
+        const rightWidth = calculateSideSectionWidth(containerWidth);
+        const titleAreaHeight = 0; // 与 drawVisualization 保持一致
+        const gradientAreaWidth = containerWidth - firstSectionWidth - rightWidth;
+        const gradientAreaHeight = containerHeight - titleAreaHeight;
+        const gradientAreaLeft = firstSectionWidth;
+        const gradientAreaTop = titleAreaHeight;
+
+        // 获取原始 SVG
+        const originalSvg = svg.node();
+        if (!originalSvg) return;
+
+        // 计算 viewBox，包含整个渐层区域
+        // viewBox 直接使用整个渐层区域的尺寸和位置
+        const viewBoxX = gradientAreaLeft;
+        const viewBoxY = gradientAreaTop;
+        const viewBoxWidth = gradientAreaWidth;
+        const viewBoxHeight = gradientAreaHeight;
+
+        // 创建新的 SVG，包含整个渐层区域，然后拉伸成正方形
+        const newSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        newSvg.setAttribute('width', '1080');
+        newSvg.setAttribute('height', '1080');
+        newSvg.setAttribute('viewBox', `${viewBoxX} ${viewBoxY} ${viewBoxWidth} ${viewBoxHeight}`);
+        newSvg.setAttribute('preserveAspectRatio', 'none');
+
+        // 克隆原始 SVG 的所有子元素
+        const defs = originalSvg.querySelector('defs');
+        if (defs) {
+          const clonedDefs = defs.cloneNode(true);
+          newSvg.appendChild(clonedDefs);
+        }
+
+        // 克隆所有组
+        const groups = originalSvg.querySelectorAll('g');
+        groups.forEach((group) => {
+          const clonedGroup = group.cloneNode(true);
+          newSvg.appendChild(clonedGroup);
+        });
+
+        // 将 SVG 转换为图片
+        const svgData = new XMLSerializer().serializeToString(newSvg);
+        const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(svgBlob);
+
+        // 创建 canvas 并绘制
+        const canvas = document.createElement('canvas');
+        canvas.width = 1080;
+        canvas.height = 1080;
+        const ctx = canvas.getContext('2d');
+
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, 1080, 1080);
+          URL.revokeObjectURL(url);
+
+          // 下载图片
+          canvas.toBlob((blob) => {
+            const downloadUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = `heatmap-${Date.now()}.png`;
+            link.click();
+            URL.revokeObjectURL(downloadUrl);
+          }, 'image/png');
+        };
+        img.src = url;
       };
 
       const toggleDBSCAN = () => {
@@ -1243,6 +1509,13 @@
         showSDE.value = !showSDE.value;
         if (sdeGroup) {
           sdeGroup.style('display', showSDE.value ? 'block' : 'none');
+        }
+      };
+
+      const toggleMST = () => {
+        showMST.value = !showMST.value;
+        if (mstGroup) {
+          mstGroup.style('display', showMST.value ? 'block' : 'none');
         }
       };
 
@@ -1325,9 +1598,13 @@
         showDelaunayFill,
         showSDE,
         showDBSCAN,
+        showMST,
         showCenterPoint,
         averageTriangleArea,
         nearestNeighborRatio,
+        meanCenter,
+        medianCenter,
+        centralFeature,
         loading,
         error,
         goHome,
@@ -1340,7 +1617,9 @@
         toggleDelaunayFill,
         toggleSDE,
         toggleDBSCAN,
+        toggleMST,
         toggleCenterPoint,
+        downloadImage,
         POLITICIAN_NAMES,
         selectedName,
         handleNameClick,
