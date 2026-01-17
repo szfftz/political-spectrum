@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import HomeView from '../views/HomeView.vue';
 import ResultView from '../views/ResultView.vue';
+import HeatmapView from '../views/HeatmapView.vue';
 
 const routes = [
   {
@@ -12,6 +13,11 @@ const routes = [
     path: '/result',
     name: 'Result',
     component: ResultView,
+  },
+  {
+    path: '/heatmap',
+    name: 'Heatmap',
+    component: HeatmapView,
   },
 ];
 

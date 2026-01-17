@@ -10,6 +10,11 @@
   --my-font-weight-100: 100;
   --my-font-weight-400: 400;
 
+  /* --my-color-blue: #3b90af;
+  --my-color-green: #79b06a;
+  --my-color-red: #dd3f33;
+  --my-color-white: #f2f2f2; */
+
   --my-color-blue: hsl(210, 85%, 65%);
   --my-color-green: hsl(150, 85%, 65%);
   --my-color-red: hsl(0, 85%, 65%);

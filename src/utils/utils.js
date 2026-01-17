@@ -36,6 +36,9 @@ export function createGradientSpectrum({
 
   const defs = svg.append('defs');
 
+  // 创建渐层组，用于控制显示/隐藏
+  const gradientGroup = svg.append('g').attr('class', 'gradient-spectrum');
+
   const topLeftGradient = defs
     .append('radialGradient')
     .attr('id', 'topLeftGradient')
@@ -108,7 +111,7 @@ export function createGradientSpectrum({
     .attr('stop-color', white)
     .attr('stop-opacity', '0');
 
-  svg
+  gradientGroup
     .append('rect')
     .attr('x', gradientAreaLeft)
     .attr('y', gradientAreaTop)
@@ -116,7 +119,7 @@ export function createGradientSpectrum({
     .attr('height', gradientAreaHeight)
     .attr('fill', backgroundGray);
 
-  svg
+  gradientGroup
     .append('rect')
     .attr('x', gradientAreaLeft)
     .attr('y', gradientAreaTop)
@@ -125,7 +128,7 @@ export function createGradientSpectrum({
     .attr('fill', 'url(#topLeftGradient)')
     .attr('mix-blend-mode', 'screen');
 
-  svg
+  gradientGroup
     .append('rect')
     .attr('x', gradientAreaLeft)
     .attr('y', gradientAreaTop)
@@ -134,7 +137,7 @@ export function createGradientSpectrum({
     .attr('fill', 'url(#topRightGradient)')
     .attr('mix-blend-mode', 'screen');
 
-  svg
+  gradientGroup
     .append('rect')
     .attr('x', gradientAreaLeft)
     .attr('y', gradientAreaTop)
@@ -143,7 +146,7 @@ export function createGradientSpectrum({
     .attr('fill', 'url(#bottomLeftGradient)')
     .attr('mix-blend-mode', 'screen');
 
-  svg
+  gradientGroup
     .append('rect')
     .attr('x', gradientAreaLeft)
     .attr('y', gradientAreaTop)
@@ -151,4 +154,6 @@ export function createGradientSpectrum({
     .attr('height', gradientAreaHeight)
     .attr('fill', 'url(#bottomRightGradient)')
     .attr('mix-blend-mode', 'screen');
+
+  return gradientGroup;
 }

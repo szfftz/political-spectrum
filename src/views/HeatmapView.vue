@@ -46,6 +46,7 @@
           >
             <button
               class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
+              style="min-width: 100px"
               @click="goHome"
               type="button"
             >
@@ -55,6 +56,81 @@
                 <i class="fas fa-arrow-left"></i>
               </div>
               <span class="mt-2">返回首頁</span>
+            </button>
+            <button
+              class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
+              style="min-width: 100px"
+              @click="toggleDataPoints"
+              type="button"
+            >
+              <div
+                class="d-flex align-items-center justify-content-center rounded-circle mt-2 my-size-32 my-border-dark-gray"
+              >
+                <i :class="showDataPoints ? 'fas fa-eye' : 'fas fa-eye-slash'"></i>
+              </div>
+              <span class="mt-2" style="text-align: center">{{
+                showDataPoints ? '隱藏黑點' : '顯示黑點'
+              }}</span>
+            </button>
+            <button
+              class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
+              style="min-width: 100px"
+              @click="toggleDarkGrid"
+              type="button"
+            >
+              <div
+                class="d-flex align-items-center justify-content-center rounded-circle mt-2 my-size-32 my-border-dark-gray"
+              >
+                <i :class="showDarkGrid ? 'fas fa-eye' : 'fas fa-eye-slash'"></i>
+              </div>
+              <span class="mt-2" style="text-align: center">{{
+                showDarkGrid ? '隱藏黑網格' : '顯示黑網格'
+              }}</span>
+            </button>
+            <button
+              class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
+              style="min-width: 100px"
+              @click="toggleGrid"
+              type="button"
+            >
+              <div
+                class="d-flex align-items-center justify-content-center rounded-circle mt-2 my-size-32 my-border-dark-gray"
+              >
+                <i :class="showGrid ? 'fas fa-eye' : 'fas fa-eye-slash'"></i>
+              </div>
+              <span class="mt-2" style="text-align: center">{{
+                showGrid ? '隱藏白網格' : '顯示白網格'
+              }}</span>
+            </button>
+            <button
+              class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
+              style="min-width: 100px"
+              @click="toggleColorGrid"
+              type="button"
+            >
+              <div
+                class="d-flex align-items-center justify-content-center rounded-circle mt-2 my-size-32 my-border-dark-gray"
+              >
+                <i :class="showColorGrid ? 'fas fa-eye' : 'fas fa-eye-slash'"></i>
+              </div>
+              <span class="mt-2" style="text-align: center">{{
+                showColorGrid ? '隱藏色網格' : '顯示色網格'
+              }}</span>
+            </button>
+            <button
+              class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
+              style="min-width: 100px"
+              @click="toggleGradient"
+              type="button"
+            >
+              <div
+                class="d-flex align-items-center justify-content-center rounded-circle mt-2 my-size-32 my-border-dark-gray"
+              >
+                <i :class="showGradient ? 'fas fa-eye' : 'fas fa-eye-slash'"></i>
+              </div>
+              <span class="mt-2" style="text-align: center">{{
+                showGradient ? '隱藏漸層' : '顯示漸層'
+              }}</span>
             </button>
           </div>
         </div>
@@ -119,6 +195,20 @@
         <i class="bi bi-exclamation-triangle-fill me-2"></i><strong>錯誤：</strong>{{ error }}
       </div>
     </div>
+
+    <div
+      ref="tooltip"
+      class="my-tooltip position-fixed bg-dark text-white px-2 py-1 rounded"
+      style="
+        pointer-events: none;
+        z-index: 10001;
+        opacity: 0;
+        transition: opacity 0.2s;
+        font-size: 12px;
+      "
+    >
+      0 個點
+    </div>
   </div>
 </template>
 
@@ -131,7 +221,7 @@
   import { getCSSVariable, createGradientSpectrum } from '../utils/utils.js';
 
   export default {
-    name: 'ResultView',
+    name: 'HeatmapView',
     setup() {
       const router = useRouter();
       const mainContainer = ref(null);
@@ -143,7 +233,18 @@
       const centerSection = ref(null);
       const rightSection = ref(null);
       const rightSectionWidth = ref(0);
+      const tooltip = ref(null);
+      const showGrid = ref(true);
+      const showColorGrid = ref(true);
+      const showGradient = ref(true);
+      const showDarkGrid = ref(true);
+      const showDataPoints = ref(true);
       let svg = null;
+      let cellGroup = null;
+      let colorGridGroup = null;
+      let gradientGroup = null;
+      let darkGridGroup = null;
+      let pointsGroup = null;
       let resizeTimer = null;
       const loading = ref(false);
       const error = ref(null);
@@ -227,6 +328,42 @@
       const calculateSideSectionWidth = (containerWidth) => {
         if (!containerWidth || containerWidth <= 0) return 0;
         return containerWidth * 0.2;
+      };
+
+      const getInterpolatedColorAtPosition = (xPercent, yPercent) => {
+        const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
+        const lerp = (start, end, t) => start + (end - start) * t;
+        const parseColor = (color) => {
+          const parsed = d3.color(color);
+          if (!parsed) return { r: 0, g: 0, b: 0 };
+          const rgb = parsed.rgb();
+          return { r: rgb.r, g: rgb.g, b: rgb.b };
+        };
+
+        const x = clamp(xPercent, 0, 1);
+        const y = clamp(yPercent, 0, 1);
+
+        const topLeft = parseColor(colors.blue || 'hsl(210, 85%, 65%)');
+        const topRight = parseColor(colors.red || 'hsl(0, 85%, 65%)');
+        const bottomLeft = parseColor(colors.green || 'hsl(150, 85%, 65%)');
+        const bottomRight = parseColor(colors.white || 'hsl(210, 60%, 92%)');
+
+        const top = {
+          r: lerp(topLeft.r, topRight.r, x),
+          g: lerp(topLeft.g, topRight.g, x),
+          b: lerp(topLeft.b, topRight.b, x),
+        };
+        const bottom = {
+          r: lerp(bottomLeft.r, bottomRight.r, x),
+          g: lerp(bottomLeft.g, bottomRight.g, x),
+          b: lerp(bottomLeft.b, bottomRight.b, x),
+        };
+
+        const r = Math.round(lerp(top.r, bottom.r, y));
+        const g = Math.round(lerp(top.g, bottom.g, y));
+        const b = Math.round(lerp(top.b, bottom.b, y));
+
+        return `rgb(${r}, ${g}, ${b})`;
       };
 
       const loadData = async (name = null) => {
@@ -364,6 +501,11 @@
         if (!svgContainer.value || !contentContainer.value) return;
 
         d3.select(svgContainer.value).selectAll('svg').remove();
+        cellGroup = null;
+        colorGridGroup = null;
+        gradientGroup = null;
+        darkGridGroup = null;
+        pointsGroup = null;
 
         const containerRect = contentContainer.value.getBoundingClientRect();
         const containerWidth = containerRect.width;
@@ -389,7 +531,7 @@
           .attr('class', 'd-block position-relative w-100 h-100')
           .style('pointer-events', 'none');
 
-        createGradientSpectrum({
+        gradientGroup = createGradientSpectrum({
           svg,
           colors,
           gradientAreaLeft,
@@ -397,7 +539,171 @@
           gradientAreaWidth,
           gradientAreaHeight,
         });
+        if (gradientGroup) {
+          gradientGroup.style('display', showGradient.value ? 'block' : 'none');
+        }
 
+        // 绘制网格
+        const gridColumns = 14;
+        const gridRows = 17;
+        const cellWidth = gradientAreaWidth / gridColumns;
+        const cellHeight = gradientAreaHeight / gridRows;
+
+        // 计算每个网格单元格中的点数
+        const cellPointCounts = new Map();
+        if (allDataPoints.value.length > 0) {
+          allDataPoints.value.forEach((item) => {
+            const xPercent = parseFloat(item.x);
+            const yPercent = parseFloat(item.y);
+
+            const x = gradientAreaLeft + (xPercent / 100) * gradientAreaWidth;
+            const y = gradientAreaTop + (yPercent / 100) * gradientAreaHeight;
+
+            let col = Math.floor((x - gradientAreaLeft) / cellWidth);
+            let row = Math.floor((y - gradientAreaTop) / cellHeight);
+
+            // 确保索引在有效范围内
+            col = Math.max(0, Math.min(col, gridColumns - 1));
+            row = Math.max(0, Math.min(row, gridRows - 1));
+
+            const cellKey = `${col},${row}`;
+            cellPointCounts.set(cellKey, (cellPointCounts.get(cellKey) || 0) + 1);
+          });
+        }
+
+        // 找到最大点数
+        let maxCount = 0;
+        cellPointCounts.forEach((count) => {
+          if (count > maxCount) {
+            maxCount = count;
+          }
+        });
+
+        // 绘制颜色提示网格（在渐层上方，白色网格下方）
+        colorGridGroup = svg
+          .append('g')
+          .attr('class', 'color-grid-cells')
+          .style('pointer-events', 'all')
+          .style('display', showColorGrid.value ? 'block' : 'none');
+        for (let row = 0; row < gridRows; row++) {
+          for (let col = 0; col < gridColumns; col++) {
+            const x = gradientAreaLeft + col * cellWidth;
+            const y = gradientAreaTop + row * cellHeight;
+            const centerXPercent = (col + 0.5) / gridColumns;
+            const centerYPercent = (row + 0.5) / gridRows;
+            const gradientColor = getInterpolatedColorAtPosition(centerXPercent, centerYPercent);
+
+            colorGridGroup
+              .append('rect')
+              .attr('x', x)
+              .attr('y', y)
+              .attr('width', cellWidth)
+              .attr('height', cellHeight)
+              .attr('fill', gradientColor)
+              .attr('stroke', 'none')
+              .on('mouseover', function (event) {
+                if (tooltip.value) {
+                  const tooltipElement = tooltip.value;
+                  tooltipElement.textContent = gradientColor;
+                  tooltipElement.style.opacity = '1';
+                  tooltipElement.style.left = `${event.pageX + 10}px`;
+                  tooltipElement.style.top = `${event.pageY + 10}px`;
+                }
+              })
+              .on('mouseout', function () {
+                if (tooltip.value) {
+                  tooltip.value.style.opacity = '0';
+                }
+              });
+          }
+        }
+
+        // 绘制可交互的网格单元格（填充矩形）
+        cellGroup = svg
+          .append('g')
+          .attr('class', 'grid-cells')
+          .style('pointer-events', 'all')
+          .style('display', showGrid.value ? 'block' : 'none');
+        for (let row = 0; row < gridRows; row++) {
+          for (let col = 0; col < gridColumns; col++) {
+            const x = gradientAreaLeft + col * cellWidth;
+            const y = gradientAreaTop + row * cellHeight;
+            const cellKey = `${col},${row}`;
+            const pointCount = cellPointCounts.get(cellKey) || 0;
+
+            // 计算 opacity: 0个点 = 1.0 (100%), 最多点 = 0.0 (0%)
+            const opacity = maxCount > 0 ? 1 - pointCount / maxCount : 1.0;
+
+            cellGroup
+              .append('rect')
+              .attr('x', x)
+              .attr('y', y)
+              .attr('width', cellWidth)
+              .attr('height', cellHeight)
+              .attr('fill', colors.backgroundGray)
+              .attr('fill-opacity', opacity)
+              .attr('stroke', 'none')
+              .attr('data-point-count', pointCount)
+              .on('mouseover', function (event) {
+                if (tooltip.value) {
+                  const tooltipElement = tooltip.value;
+                  tooltipElement.textContent = `${pointCount} 個點`;
+                  tooltipElement.style.opacity = '1';
+                  tooltipElement.style.left = `${event.pageX + 10}px`;
+                  tooltipElement.style.top = `${event.pageY + 10}px`;
+                }
+              })
+              .on('mouseout', function () {
+                if (tooltip.value) {
+                  tooltip.value.style.opacity = '0';
+                }
+              });
+          }
+        }
+
+        // 绘制黑网格（在白网格上面）- 有点不填充，没点用深灰色填充
+        darkGridGroup = svg
+          .append('g')
+          .attr('class', 'dark-grid-cells')
+          .style('pointer-events', 'all')
+          .style('display', showDarkGrid.value ? 'block' : 'none');
+        for (let row = 0; row < gridRows; row++) {
+          for (let col = 0; col < gridColumns; col++) {
+            const x = gradientAreaLeft + col * cellWidth;
+            const y = gradientAreaTop + row * cellHeight;
+            const cellKey = `${col},${row}`;
+            const pointCount = cellPointCounts.get(cellKey) || 0;
+
+            // 如果有点，不填充（transparent）；如果没有点，用深灰色填充
+            const fillColor = pointCount > 0 ? 'transparent' : colors.darkGray;
+
+            darkGridGroup
+              .append('rect')
+              .attr('x', x)
+              .attr('y', y)
+              .attr('width', cellWidth)
+              .attr('height', cellHeight)
+              .attr('fill', fillColor)
+              .attr('stroke', 'none')
+              .attr('data-point-count', pointCount)
+              .on('mouseover', function (event) {
+                if (tooltip.value) {
+                  const tooltipElement = tooltip.value;
+                  tooltipElement.textContent = `${pointCount} 個點`;
+                  tooltipElement.style.opacity = '1';
+                  tooltipElement.style.left = `${event.pageX + 10}px`;
+                  tooltipElement.style.top = `${event.pageY + 10}px`;
+                }
+              })
+              .on('mouseout', function () {
+                if (tooltip.value) {
+                  tooltip.value.style.opacity = '0';
+                }
+              });
+          }
+        }
+
+        // 绘制数据点（在最上面）
         if (allDataPoints.value.length > 0) {
           const points = allDataPoints.value.map((item) => {
             const xPercent = parseFloat(item.x);
@@ -415,7 +721,10 @@
             };
           });
 
-          const pointsGroup = svg.append('g').attr('class', 'data-points');
+          pointsGroup = svg.append('g').attr('class', 'data-points');
+          if (pointsGroup) {
+            pointsGroup.style('display', showDataPoints.value ? 'block' : 'none');
+          }
           points.forEach((point) => {
             pointsGroup
               .append('circle')
@@ -485,6 +794,41 @@
         router.push('/');
       };
 
+      const toggleDataPoints = () => {
+        showDataPoints.value = !showDataPoints.value;
+        if (pointsGroup) {
+          pointsGroup.style('display', showDataPoints.value ? 'block' : 'none');
+        }
+      };
+
+      const toggleDarkGrid = () => {
+        showDarkGrid.value = !showDarkGrid.value;
+        if (darkGridGroup) {
+          darkGridGroup.style('display', showDarkGrid.value ? 'block' : 'none');
+        }
+      };
+
+      const toggleGrid = () => {
+        showGrid.value = !showGrid.value;
+        if (cellGroup) {
+          cellGroup.style('display', showGrid.value ? 'block' : 'none');
+        }
+      };
+
+      const toggleColorGrid = () => {
+        showColorGrid.value = !showColorGrid.value;
+        if (colorGridGroup) {
+          colorGridGroup.style('display', showColorGrid.value ? 'block' : 'none');
+        }
+      };
+
+      const toggleGradient = () => {
+        showGradient.value = !showGradient.value;
+        if (gradientGroup) {
+          gradientGroup.style('display', showGradient.value ? 'block' : 'none');
+        }
+      };
+
       onMounted(() => {
         const isLocalhost =
           window.location.hostname === 'localhost' ||
@@ -526,9 +870,20 @@
         centerSection,
         rightSection,
         rightSectionWidth,
+        tooltip,
+        showGrid,
+        showColorGrid,
+        showGradient,
+        showDarkGrid,
+        showDataPoints,
         loading,
         error,
         goHome,
+        toggleGrid,
+        toggleColorGrid,
+        toggleGradient,
+        toggleDarkGrid,
+        toggleDataPoints,
         POLITICIAN_NAMES,
         selectedName,
         handleNameClick,
