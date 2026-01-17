@@ -64,8 +64,13 @@
               </div>
               <div class="d-flex align-items-center">
                 <span
-                  >三角形面積平均：{{ averageTriangleArea.toFixed(2) }} | NNR:
-                  {{ nearestNeighborRatio.toFixed(3) }}</span
+                  >三角形面積平均：{{ averageTriangleArea.toFixed(2) }} 三角形面積中位數：{{
+                    medianTriangleArea.toFixed(2)
+                  }}
+                  | MST線平均長度：{{ averageMSTEdgeLength.toFixed(2) }} MST線中位數：{{
+                    medianMSTEdgeLength.toFixed(2)
+                  }}
+                  | NNR: {{ nearestNeighborRatio.toFixed(3) }}</span
                 >
               </div>
             </div>
@@ -102,6 +107,16 @@
               type="button"
             >
               <span style="text-align: center">{{ showDataPoints ? '隱藏黑點' : '顯示黑點' }}</span>
+            </button>
+            <button
+              class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
+              style="min-width: 100px"
+              @click="toggleColorPoints"
+              type="button"
+            >
+              <span style="text-align: center">{{
+                showColorPoints ? '隱藏彩點' : '顯示彩點'
+              }}</span>
             </button>
             <button
               class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
@@ -307,6 +322,7 @@
       const showGradient = ref(true);
       const showDarkGrid = ref(false);
       const showDataPoints = ref(true);
+      const showColorPoints = ref(false);
       const showDelaunay = ref(false);
       const showDelaunayFill = ref(false);
       const showSDE = ref(false);
@@ -314,7 +330,10 @@
       const showMST = ref(false);
       const showCenterPoint = ref(true);
       const averageTriangleArea = ref(0);
+      const medianTriangleArea = ref(0);
       const nearestNeighborRatio = ref(0);
+      const averageMSTEdgeLength = ref(0);
+      const medianMSTEdgeLength = ref(0);
       const meanCenter = ref({ x: 0, y: 0 });
       const medianCenter = ref({ x: 0, y: 0 });
       const centralFeature = ref({ x: 0, y: 0 });
@@ -324,6 +343,7 @@
       let gradientGroup = null;
       let darkGridGroup = null;
       let pointsGroup = null;
+      let colorPointsGroup = null;
       let delaunayGroup = null;
       let delaunayFillGroup = null;
       let sdeGroup = null;
@@ -590,6 +610,8 @@
         gradientGroup = null;
         darkGridGroup = null;
         pointsGroup = null;
+        colorPointsGroup = null;
+        colorPointsGroup = null;
         delaunayGroup = null;
         delaunayFillGroup = null;
         sdeGroup = null;
@@ -857,6 +879,18 @@
               ? triangleAreas.reduce((sum, area) => sum + area, 0) / triangleAreas.length
               : 0;
           averageTriangleArea.value = avgArea;
+
+          // 计算中位数面积
+          let medianArea = 0;
+          if (triangleAreas.length > 0) {
+            const sortedAreas = [...triangleAreas].sort((a, b) => a - b);
+            const mid = Math.floor(sortedAreas.length / 2);
+            medianArea =
+              sortedAreas.length % 2 === 0
+                ? (sortedAreas[mid - 1] + sortedAreas[mid]) / 2
+                : sortedAreas[mid];
+          }
+          medianTriangleArea.value = medianArea;
 
           // 计算 Nearest Neighbor Ratio (NNR)
           if (points.length >= 2) {
@@ -1218,6 +1252,23 @@
               }
             }
 
+            // 计算 MST 边的平均长度
+            if (mstEdges.length > 0) {
+              const totalLength = mstEdges.reduce((sum, edge) => sum + edge.distance, 0);
+              averageMSTEdgeLength.value = totalLength / mstEdges.length;
+
+              // 计算 MST 边的中位数长度
+              const sortedEdgeLengths = mstEdges.map((edge) => edge.distance).sort((a, b) => a - b);
+              const mid = Math.floor(sortedEdgeLengths.length / 2);
+              medianMSTEdgeLength.value =
+                sortedEdgeLengths.length % 2 === 0
+                  ? (sortedEdgeLengths[mid - 1] + sortedEdgeLengths[mid]) / 2
+                  : sortedEdgeLengths[mid];
+            } else {
+              averageMSTEdgeLength.value = 0;
+              medianMSTEdgeLength.value = 0;
+            }
+
             // 绘制 MST
             mstGroup = svg.append('g').attr('class', 'mst');
             if (mstGroup) {
@@ -1235,6 +1286,26 @@
                 .attr('opacity', 0.5);
             });
           }
+
+          // 绘制彩色点（在数据点下方）
+          colorPointsGroup = svg.append('g').attr('class', 'color-points');
+          if (colorPointsGroup) {
+            colorPointsGroup.style('display', showColorPoints.value ? 'block' : 'none');
+          }
+          points.forEach((point) => {
+            // 计算该位置在渐层中的颜色
+            const color = getInterpolatedColorAtPosition(
+              point.xPercent / 100,
+              point.yPercent / 100
+            );
+            colorPointsGroup
+              .append('circle')
+              .attr('cx', point.x)
+              .attr('cy', point.y)
+              .attr('r', 4)
+              .attr('fill', color)
+              .attr('opacity', 0.8);
+          });
 
           // 绘制数据点（在最上面）
           pointsGroup = svg.append('g').attr('class', 'data-points');
@@ -1491,6 +1562,13 @@
         }
       };
 
+      const toggleColorPoints = () => {
+        showColorPoints.value = !showColorPoints.value;
+        if (colorPointsGroup) {
+          colorPointsGroup.style('display', showColorPoints.value ? 'block' : 'none');
+        }
+      };
+
       const toggleDelaunay = () => {
         showDelaunay.value = !showDelaunay.value;
         if (delaunayGroup) {
@@ -1594,6 +1672,7 @@
         showGradient,
         showDarkGrid,
         showDataPoints,
+        showColorPoints,
         showDelaunay,
         showDelaunayFill,
         showSDE,
@@ -1601,7 +1680,10 @@
         showMST,
         showCenterPoint,
         averageTriangleArea,
+        medianTriangleArea,
         nearestNeighborRatio,
+        averageMSTEdgeLength,
+        medianMSTEdgeLength,
         meanCenter,
         medianCenter,
         centralFeature,
@@ -1613,6 +1695,7 @@
         toggleGradient,
         toggleDarkGrid,
         toggleDataPoints,
+        toggleColorPoints,
         toggleDelaunay,
         toggleDelaunayFill,
         toggleSDE,

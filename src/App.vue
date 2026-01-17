@@ -53,9 +53,7 @@
 <template>
   <div class="app-root d-flex flex-column" style="height: calc(var(--vh, 1vh) * 100); overflow: hidden">
     <div class="d-flex flex-column overflow-hidden" style="flex: 1; min-height: 0">
-      <router-view v-slot="{ Component }">
-        <component :is="Component" v-if="Component" />
-      </router-view>
+      <router-view :key="route.path" />
     </div>
   </div>
 </template>
