@@ -1195,23 +1195,64 @@
               const semiMajor = Math.sqrt(lambda1); // 长半轴
               const semiMinor = Math.sqrt(lambda2); // 短半轴
 
+              // 使用与背景相同的渐层，裁切成椭圆形状
+              const defs = svg.select('defs').empty() ? svg.append('defs') : svg.select('defs');
+              const clipId = `sde-clip-${Date.now()}`;
+              const clipPath = defs.append('clipPath').attr('id', clipId);
+              clipPath
+                .append('ellipse')
+                .attr('cx', meanX)
+                .attr('cy', meanY)
+                .attr('rx', semiMajor)
+                .attr('ry', semiMinor)
+                .attr('transform', `rotate(${(angle * 180) / Math.PI} ${meanX} ${meanY})`);
+
               // 绘制标准偏差椭圆（在数据点下方）
               sdeGroup = svg.append('g').attr('class', 'sde-ellipse');
               if (sdeGroup) {
                 sdeGroup.style('display', showSDE.value ? 'block' : 'none');
               }
 
-              sdeGroup
-                .append('ellipse')
-                .attr('cx', meanX)
-                .attr('cy', meanY)
-                .attr('rx', semiMajor)
-                .attr('ry', semiMinor)
-                .attr('transform', `rotate(${(angle * 180) / Math.PI} ${meanX} ${meanY})`)
-                .attr('fill', 'none')
-                .attr('stroke', colors.darkGray)
-                .attr('stroke-width', 1)
-                .attr('opacity', 0.5);
+              const clipGroup = sdeGroup.append('g').attr('clip-path', `url(#${clipId})`);
+              clipGroup
+                .append('rect')
+                .attr('x', gradientAreaLeft)
+                .attr('y', gradientAreaTop)
+                .attr('width', gradientAreaWidth)
+                .attr('height', gradientAreaHeight)
+                .attr('fill', colors.backgroundGray);
+              clipGroup
+                .append('rect')
+                .attr('x', gradientAreaLeft)
+                .attr('y', gradientAreaTop)
+                .attr('width', gradientAreaWidth)
+                .attr('height', gradientAreaHeight)
+                .attr('fill', 'url(#topLeftGradient)')
+                .attr('mix-blend-mode', 'screen');
+              clipGroup
+                .append('rect')
+                .attr('x', gradientAreaLeft)
+                .attr('y', gradientAreaTop)
+                .attr('width', gradientAreaWidth)
+                .attr('height', gradientAreaHeight)
+                .attr('fill', 'url(#topRightGradient)')
+                .attr('mix-blend-mode', 'screen');
+              clipGroup
+                .append('rect')
+                .attr('x', gradientAreaLeft)
+                .attr('y', gradientAreaTop)
+                .attr('width', gradientAreaWidth)
+                .attr('height', gradientAreaHeight)
+                .attr('fill', 'url(#bottomLeftGradient)')
+                .attr('mix-blend-mode', 'screen');
+              clipGroup
+                .append('rect')
+                .attr('x', gradientAreaLeft)
+                .attr('y', gradientAreaTop)
+                .attr('width', gradientAreaWidth)
+                .attr('height', gradientAreaHeight)
+                .attr('fill', 'url(#bottomRightGradient)')
+                .attr('mix-blend-mode', 'screen');
             }
           }
 
@@ -1415,7 +1456,7 @@
               .append('circle')
               .attr('cx', point.x)
               .attr('cy', point.y)
-              .attr('r', '2pt')
+              .attr('r', 2)
               .attr('fill', color)
               .attr('opacity', 0.8);
           });
@@ -1458,6 +1499,7 @@
             const gradient01 = svgDefsElement
               .append('linearGradient')
               .attr('id', gradientId01)
+              .attr('gradientUnits', 'userSpaceOnUse')
               .attr('x1', triangle.x0)
               .attr('y1', triangle.y0)
               .attr('x2', triangle.x1)
@@ -1469,6 +1511,7 @@
             const gradient12 = svgDefsElement
               .append('linearGradient')
               .attr('id', gradientId12)
+              .attr('gradientUnits', 'userSpaceOnUse')
               .attr('x1', triangle.x1)
               .attr('y1', triangle.y1)
               .attr('x2', triangle.x2)
@@ -1480,6 +1523,7 @@
             const gradient20 = svgDefsElement
               .append('linearGradient')
               .attr('id', gradientId20)
+              .attr('gradientUnits', 'userSpaceOnUse')
               .attr('x1', triangle.x2)
               .attr('y1', triangle.y2)
               .attr('x2', triangle.x0)
