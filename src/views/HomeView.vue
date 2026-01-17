@@ -161,6 +161,29 @@
       const totalCookieIds = ref(0);
 
       const loadTotalCookieIds = async () => {
+        // 优先从本地JSON文件读取数据
+        try {
+          const response = await fetch('/data/data.json');
+          if (response.ok) {
+            const jsonData = await response.json();
+
+            // 统计唯一的 cookie_id
+            const uniqueCookieIds = new Set();
+            jsonData.forEach((item) => {
+              if (item.cookie_id !== null && item.cookie_id !== undefined) {
+                uniqueCookieIds.add(item.cookie_id);
+              }
+            });
+
+            totalCookieIds.value = uniqueCookieIds.size;
+            return;
+          }
+        } catch (jsonError) {
+          // JSON文件不存在或读取失败，继续从数据库读取
+          console.log('無法讀取本地JSON檔案，將從資料庫讀取');
+        }
+
+        // 如果JSON文件不存在或读取失败，从数据库读取
         if (!isConfigured()) {
           totalCookieIds.value = 0;
           return;
