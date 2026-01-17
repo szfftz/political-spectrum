@@ -246,6 +246,14 @@
             <button
               class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
               style="min-width: 100px"
+              @click="downloadData"
+              type="button"
+            >
+              <span style="text-align: center">下載資料</span>
+            </button>
+            <button
+              class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
+              style="min-width: 100px"
               @click="downloadImage"
               type="button"
             >
@@ -534,6 +542,61 @@
           d3.select(svgContainer.value).selectAll('svg').remove();
         }
 
+        // 优先从本地JSON文件读取数据
+        try {
+          const response = await fetch('/data/data.json');
+          if (response.ok) {
+            const jsonData = await response.json();
+            let resultData = jsonData;
+
+            // 如果指定了name，进行过滤
+            if (name) {
+              resultData = jsonData.filter((item) => item.name === name);
+            }
+
+            if (!resultData || resultData.length === 0) {
+              allDataPoints.value = [];
+              totalDataPoints.value = 0;
+              loading.value = false;
+              loadCookieData();
+              setTimeout(() => {
+                drawVisualization();
+              }, 100);
+              return;
+            }
+
+            const validPoints = resultData.filter((item) => {
+              const x = parseFloat(item.x);
+              const y = parseFloat(item.y);
+
+              return (
+                x !== -1 &&
+                y !== -1 &&
+                item.x !== null &&
+                item.y !== null &&
+                item.x !== undefined &&
+                item.y !== undefined &&
+                !isNaN(x) &&
+                !isNaN(y)
+              );
+            });
+
+            allDataPoints.value = validPoints;
+            totalDataPoints.value = resultData.length;
+
+            loading.value = false;
+            loadCookieData();
+            setTimeout(() => {
+              drawVisualization();
+            }, 100);
+            return;
+          }
+        } catch (jsonError) {
+          // JSON文件不存在或读取失败，继续从数据库读取
+          console.log('無法讀取本地JSON檔案，將從資料庫讀取');
+        }
+
+        // 如果JSON文件不存在或读取失败，从数据库读取
         if (!isConfigured()) {
           error.value = 'Supabase 配置未完成';
           loading.value = false;
@@ -1631,6 +1694,66 @@
         }
       };
 
+      const downloadData = async () => {
+        if (!isConfigured()) {
+          alert('Supabase 配置未完成，無法下載資料');
+          return;
+        }
+
+        try {
+          loading.value = true;
+          const supabase = getSupabaseClient();
+
+          const allResults = [];
+          const pageSize = 1000;
+          let from = 0;
+          let hasMore = true;
+
+          while (hasMore) {
+            const { data: pageData, error: queryError } = await supabase
+              .from('data')
+              .select('*')
+              .order('update_at', { ascending: false })
+              .range(from, from + pageSize - 1);
+
+            if (queryError) {
+              throw new Error(`查詢數據時發生錯誤: ${queryError.message}`);
+            }
+
+            if (pageData && pageData.length > 0) {
+              allResults.push(...pageData);
+              from += pageSize;
+
+              if (pageData.length < pageSize) {
+                hasMore = false;
+              }
+            } else {
+              hasMore = false;
+            }
+          }
+
+          // 将数据转换为JSON字符串
+          const jsonString = JSON.stringify(allResults, null, 2);
+
+          // 创建Blob并下载
+          const blob = new Blob([jsonString], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = 'data.json';
+          link.click();
+          URL.revokeObjectURL(url);
+
+          alert(
+            `已下載 ${allResults.length} 筆資料。請將 data.json 檔案放到 public/data 資料夾中。`
+          );
+        } catch (err) {
+          alert(`下載資料時發生錯誤: ${err.message}`);
+        } finally {
+          loading.value = false;
+        }
+      };
+
       const downloadImage = () => {
         if (!svg || !contentContainer.value) return;
 
@@ -1909,6 +2032,7 @@
         toggleDBSCAN,
         toggleMST,
         toggleCenterPoint,
+        downloadData,
         downloadImage,
         POLITICIAN_NAMES,
         selectedName,
