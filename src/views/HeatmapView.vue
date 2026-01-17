@@ -35,9 +35,17 @@
                     class="fa-solid fa-diamond me-1"
                     style="color: var(--my-color-yellow); font-size: 0.875rem"
                   ></i>
+                  <span>平均 ({{ meanCenter.x.toFixed(2) }}, {{ meanCenter.y.toFixed(2) }})</span>
                   <span
-                    >平均中心 ({{ meanCenter.x.toFixed(2) }}, {{ meanCenter.y.toFixed(2) }})</span
-                  >
+                    class="ms-2 d-inline-block"
+                    :style="{
+                      width: '12px',
+                      height: '12px',
+                      backgroundColor: meanCenterColor,
+                      border: '1px solid rgba(0,0,0,0.2)',
+                    }"
+                  ></span>
+                  <span v-if="meanCenterHex" class="ms-1">{{ meanCenterHex }}</span>
                 </span>
                 <span class="mx-2">|</span>
                 <span class="d-flex align-items-center me-2">
@@ -46,9 +54,18 @@
                     style="color: var(--my-color-red); font-size: 0.875rem"
                   ></i>
                   <span
-                    >中位數中心 ({{ medianCenter.x.toFixed(2) }},
-                    {{ medianCenter.y.toFixed(2) }})</span
+                    >中位數 ({{ medianCenter.x.toFixed(2) }}, {{ medianCenter.y.toFixed(2) }})</span
                   >
+                  <span
+                    class="ms-2 d-inline-block"
+                    :style="{
+                      width: '12px',
+                      height: '12px',
+                      backgroundColor: medianCenterColor,
+                      border: '1px solid rgba(0,0,0,0.2)',
+                    }"
+                  ></span>
+                  <span v-if="medianCenterHex" class="ms-1">{{ medianCenterHex }}</span>
                 </span>
                 <span class="mx-2">|</span>
                 <span class="d-flex align-items-center me-2">
@@ -57,9 +74,19 @@
                     style="color: var(--my-color-green); font-size: 0.875rem"
                   ></i>
                   <span
-                    >中心要素 ({{ centralFeature.x.toFixed(2) }},
+                    >中心 ({{ centralFeature.x.toFixed(2) }},
                     {{ centralFeature.y.toFixed(2) }})</span
                   >
+                  <span
+                    class="ms-2 d-inline-block"
+                    :style="{
+                      width: '12px',
+                      height: '12px',
+                      backgroundColor: centralFeatureColor,
+                      border: '1px solid rgba(0,0,0,0.2)',
+                    }"
+                  ></span>
+                  <span v-if="centralFeatureHex" class="ms-1">{{ centralFeatureHex }}</span>
                 </span>
               </div>
               <div class="d-flex align-items-center">
@@ -168,6 +195,16 @@
             >
               <span style="text-align: center">{{
                 showDelaunayFill ? '隱藏三角填' : '顯示三角填'
+              }}</span>
+            </button>
+            <button
+              class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
+              style="min-width: 100px"
+              @click="toggleColorDelaunay"
+              type="button"
+            >
+              <span style="text-align: center">{{
+                showColorDelaunay ? '隱藏彩色三角' : '顯示彩色三角'
               }}</span>
             </button>
             <button
@@ -295,7 +332,7 @@
 </template>
 
 <script>
-  import { ref, onMounted, onUnmounted } from 'vue';
+  import { ref, computed, onMounted, onUnmounted } from 'vue';
   import { useRouter } from 'vue-router';
   import * as d3 from 'd3';
   import { Delaunay } from 'd3-delaunay';
@@ -325,6 +362,7 @@
       const showColorPoints = ref(false);
       const showDelaunay = ref(false);
       const showDelaunayFill = ref(false);
+      const showColorDelaunay = ref(false);
       const showSDE = ref(false);
       const showDBSCAN = ref(false);
       const showMST = ref(false);
@@ -346,6 +384,7 @@
       let colorPointsGroup = null;
       let delaunayGroup = null;
       let delaunayFillGroup = null;
+      let colorDelaunayGroup = null;
       let sdeGroup = null;
       let dbscanGroup = null;
       let mstGroup = null;
@@ -468,6 +507,25 @@
         const b = Math.round(lerp(top.b, bottom.b, y));
 
         return `rgb(${r}, ${g}, ${b})`;
+      };
+
+      // 将 RGB 颜色字符串转换为 hex
+      const rgbToHex = (rgbString) => {
+        if (!rgbString || rgbString === 'transparent') {
+          return '';
+        }
+        const match = rgbString.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+        if (!match) {
+          return '';
+        }
+        const r = parseInt(match[1], 10);
+        const g = parseInt(match[2], 10);
+        const b = parseInt(match[3], 10);
+        const toHex = (n) => {
+          const hex = n.toString(16);
+          return hex.length === 1 ? '0' + hex : hex;
+        };
+        return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
       };
 
       const loadData = async (name = null) => {
@@ -614,6 +672,7 @@
         colorPointsGroup = null;
         delaunayGroup = null;
         delaunayFillGroup = null;
+        colorDelaunayGroup = null;
         sdeGroup = null;
         dbscanGroup = null;
         mstGroup = null;
@@ -866,7 +925,7 @@
 
             triangleAreas.push(area);
             edgeLengths.push(maxEdge);
-            triangleData.push({ x0, y0, x1, y1, x2, y2, area, maxEdge });
+            triangleData.push({ x0, y0, x1, y1, x2, y2, area, maxEdge, i0, i1, i2 });
           }
 
           // 找到最小和最大面积
@@ -1307,6 +1366,105 @@
               .attr('opacity', 0.8);
           });
 
+          // 绘制彩色三角图层（每条边的颜色是连接两个点的颜色渐变）
+          colorDelaunayGroup = svg.append('g').attr('class', 'color-delaunay');
+          if (colorDelaunayGroup) {
+            colorDelaunayGroup.style('display', showColorDelaunay.value ? 'block' : 'none');
+          }
+
+          // 确保 defs 存在（重用已有的 defs）
+          const svgDefs = svg.select('defs');
+          const svgDefsElement = svgDefs.empty() ? svg.append('defs') : svgDefs;
+
+          // 为每个三角形的三条边创建渐变
+          triangleData.forEach((triangle, index) => {
+            const point0 = points[triangle.i0];
+            const point1 = points[triangle.i1];
+            const point2 = points[triangle.i2];
+
+            const color0 = getInterpolatedColorAtPosition(
+              point0.xPercent / 100,
+              point0.yPercent / 100
+            );
+            const color1 = getInterpolatedColorAtPosition(
+              point1.xPercent / 100,
+              point1.yPercent / 100
+            );
+            const color2 = getInterpolatedColorAtPosition(
+              point2.xPercent / 100,
+              point2.yPercent / 100
+            );
+
+            // 为三条边创建渐变 ID
+            const gradientId01 = `gradient-${index}-01`;
+            const gradientId12 = `gradient-${index}-12`;
+            const gradientId20 = `gradient-${index}-20`;
+
+            // 边 0-1 的渐变
+            const gradient01 = svgDefsElement
+              .append('linearGradient')
+              .attr('id', gradientId01)
+              .attr('x1', triangle.x0)
+              .attr('y1', triangle.y0)
+              .attr('x2', triangle.x1)
+              .attr('y2', triangle.y1);
+            gradient01.append('stop').attr('offset', '0%').attr('stop-color', color0);
+            gradient01.append('stop').attr('offset', '100%').attr('stop-color', color1);
+
+            // 边 1-2 的渐变
+            const gradient12 = svgDefsElement
+              .append('linearGradient')
+              .attr('id', gradientId12)
+              .attr('x1', triangle.x1)
+              .attr('y1', triangle.y1)
+              .attr('x2', triangle.x2)
+              .attr('y2', triangle.y2);
+            gradient12.append('stop').attr('offset', '0%').attr('stop-color', color1);
+            gradient12.append('stop').attr('offset', '100%').attr('stop-color', color2);
+
+            // 边 2-0 的渐变
+            const gradient20 = svgDefsElement
+              .append('linearGradient')
+              .attr('id', gradientId20)
+              .attr('x1', triangle.x2)
+              .attr('y1', triangle.y2)
+              .attr('x2', triangle.x0)
+              .attr('y2', triangle.y0);
+            gradient20.append('stop').attr('offset', '0%').attr('stop-color', color2);
+            gradient20.append('stop').attr('offset', '100%').attr('stop-color', color0);
+
+            // 绘制三条边
+            colorDelaunayGroup
+              .append('line')
+              .attr('x1', triangle.x0)
+              .attr('y1', triangle.y0)
+              .attr('x2', triangle.x1)
+              .attr('y2', triangle.y1)
+              .attr('stroke', `url(#${gradientId01})`)
+              .attr('stroke-width', 0.5)
+              .attr('opacity', 0.8);
+
+            colorDelaunayGroup
+              .append('line')
+              .attr('x1', triangle.x1)
+              .attr('y1', triangle.y1)
+              .attr('x2', triangle.x2)
+              .attr('y2', triangle.y2)
+              .attr('stroke', `url(#${gradientId12})`)
+              .attr('stroke-width', 0.5)
+              .attr('opacity', 0.8);
+
+            colorDelaunayGroup
+              .append('line')
+              .attr('x1', triangle.x2)
+              .attr('y1', triangle.y2)
+              .attr('x2', triangle.x0)
+              .attr('y2', triangle.y0)
+              .attr('stroke', `url(#${gradientId20})`)
+              .attr('stroke-width', 0.5)
+              .attr('opacity', 0.8);
+          });
+
           // 绘制数据点（在最上面）
           pointsGroup = svg.append('g').attr('class', 'data-points');
           if (pointsGroup) {
@@ -1583,6 +1741,13 @@
         }
       };
 
+      const toggleColorDelaunay = () => {
+        showColorDelaunay.value = !showColorDelaunay.value;
+        if (colorDelaunayGroup) {
+          colorDelaunayGroup.style('display', showColorDelaunay.value ? 'block' : 'none');
+        }
+      };
+
       const toggleSDE = () => {
         showSDE.value = !showSDE.value;
         if (sdeGroup) {
@@ -1656,6 +1821,39 @@
         }
       });
 
+      // 计算每个中心点的渐层颜色
+      const meanCenterColor = computed(() => {
+        if (meanCenter.value.x === 0 && meanCenter.value.y === 0) {
+          return 'transparent';
+        }
+        return getInterpolatedColorAtPosition(meanCenter.value.x / 100, meanCenter.value.y / 100);
+      });
+
+      const medianCenterColor = computed(() => {
+        if (medianCenter.value.x === 0 && medianCenter.value.y === 0) {
+          return 'transparent';
+        }
+        return getInterpolatedColorAtPosition(
+          medianCenter.value.x / 100,
+          medianCenter.value.y / 100
+        );
+      });
+
+      const centralFeatureColor = computed(() => {
+        if (centralFeature.value.x === 0 && centralFeature.value.y === 0) {
+          return 'transparent';
+        }
+        return getInterpolatedColorAtPosition(
+          centralFeature.value.x / 100,
+          centralFeature.value.y / 100
+        );
+      });
+
+      // 计算每个中心点的 hex 值
+      const meanCenterHex = computed(() => rgbToHex(meanCenterColor.value));
+      const medianCenterHex = computed(() => rgbToHex(medianCenterColor.value));
+      const centralFeatureHex = computed(() => rgbToHex(centralFeatureColor.value));
+
       return {
         mainContainer,
         contentContainer,
@@ -1675,6 +1873,7 @@
         showColorPoints,
         showDelaunay,
         showDelaunayFill,
+        showColorDelaunay,
         showSDE,
         showDBSCAN,
         showMST,
@@ -1687,6 +1886,12 @@
         meanCenter,
         medianCenter,
         centralFeature,
+        meanCenterColor,
+        medianCenterColor,
+        centralFeatureColor,
+        meanCenterHex,
+        medianCenterHex,
+        centralFeatureHex,
         loading,
         error,
         goHome,
@@ -1698,6 +1903,7 @@
         toggleColorPoints,
         toggleDelaunay,
         toggleDelaunayFill,
+        toggleColorDelaunay,
         toggleSDE,
         toggleDBSCAN,
         toggleMST,
