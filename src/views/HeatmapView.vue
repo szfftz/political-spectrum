@@ -75,6 +75,36 @@
             <button
               class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
               style="min-width: 100px"
+              @click="toggleDelaunay"
+              type="button"
+            >
+              <div
+                class="d-flex align-items-center justify-content-center rounded-circle mt-2 my-size-32 my-border-dark-gray"
+              >
+                <i :class="showDelaunay ? 'fas fa-eye' : 'fas fa-eye-slash'"></i>
+              </div>
+              <span class="mt-2" style="text-align: center">{{
+                showDelaunay ? '隱藏三角' : '顯示三角'
+              }}</span>
+            </button>
+            <button
+              class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
+              style="min-width: 100px"
+              @click="toggleDelaunayFill"
+              type="button"
+            >
+              <div
+                class="d-flex align-items-center justify-content-center rounded-circle mt-2 my-size-32 my-border-dark-gray"
+              >
+                <i :class="showDelaunayFill ? 'fas fa-eye' : 'fas fa-eye-slash'"></i>
+              </div>
+              <span class="mt-2" style="text-align: center">{{
+                showDelaunayFill ? '隱藏三角填' : '顯示三角填'
+              }}</span>
+            </button>
+            <button
+              class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
+              style="min-width: 100px"
               @click="toggleDarkGrid"
               type="button"
             >
@@ -216,6 +246,7 @@
   import { ref, onMounted, onUnmounted } from 'vue';
   import { useRouter } from 'vue-router';
   import * as d3 from 'd3';
+  import { Delaunay } from 'd3-delaunay';
   import { getSupabaseClient, isConfigured } from '../config/supabase.js';
   import { POLITICIAN_NAMES } from '../config/constants.js';
   import { getCSSVariable, createGradientSpectrum } from '../utils/utils.js';
@@ -239,12 +270,16 @@
       const showGradient = ref(true);
       const showDarkGrid = ref(true);
       const showDataPoints = ref(true);
+      const showDelaunay = ref(true);
+      const showDelaunayFill = ref(true);
       let svg = null;
       let cellGroup = null;
       let colorGridGroup = null;
       let gradientGroup = null;
       let darkGridGroup = null;
       let pointsGroup = null;
+      let delaunayGroup = null;
+      let delaunayFillGroup = null;
       let resizeTimer = null;
       const loading = ref(false);
       const error = ref(null);
@@ -506,6 +541,8 @@
         gradientGroup = null;
         darkGridGroup = null;
         pointsGroup = null;
+        delaunayGroup = null;
+        delaunayFillGroup = null;
 
         const containerRect = contentContainer.value.getBoundingClientRect();
         const containerWidth = containerRect.width;
@@ -703,7 +740,7 @@
           }
         }
 
-        // 绘制数据点（在最上面）
+        // 绘制 Delaunay 三角剖分（在数据点下方）
         if (allDataPoints.value.length > 0) {
           const points = allDataPoints.value.map((item) => {
             const xPercent = parseFloat(item.x);
@@ -721,6 +758,81 @@
             };
           });
 
+          // 创建 Delaunay 三角剖分
+          const pointsArray = points.map((p) => [p.x, p.y]);
+          const delaunay = Delaunay.from(pointsArray);
+          const triangles = delaunay.triangles;
+
+          // 计算每个三角形的面积
+          const triangleAreas = [];
+          const triangleData = [];
+          for (let i = 0; i < triangles.length; i += 3) {
+            const i0 = triangles[i];
+            const i1 = triangles[i + 1];
+            const i2 = triangles[i + 2];
+
+            const x0 = pointsArray[i0][0];
+            const y0 = pointsArray[i0][1];
+            const x1 = pointsArray[i1][0];
+            const y1 = pointsArray[i1][1];
+            const x2 = pointsArray[i2][0];
+            const y2 = pointsArray[i2][1];
+
+            // 计算三角形面积：|(x1-x0)(y2-y0) - (x2-x0)(y1-y0)| / 2
+            const area = Math.abs((x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0)) / 2;
+            triangleAreas.push(area);
+            triangleData.push({ x0, y0, x1, y1, x2, y2, area });
+          }
+
+          // 找到最小和最大面积
+          const minArea = Math.min(...triangleAreas);
+          const maxArea = Math.max(...triangleAreas);
+
+          // 使用 d3 scale 创建 opacity 映射：最小面积 -> 0%，最大面积 -> 100%
+          const opacityScale =
+            minArea < maxArea
+              ? d3.scaleLinear().domain([minArea, maxArea]).range([0, 1])
+              : d3.scaleLinear().domain([minArea, minArea]).range([0, 1]);
+
+          // 绘制填充的三角形（在三角剖分下方）
+          delaunayFillGroup = svg.append('g').attr('class', 'delaunay-fill');
+          if (delaunayFillGroup) {
+            delaunayFillGroup.style('display', showDelaunayFill.value ? 'block' : 'none');
+          }
+
+          triangleData.forEach((triangle) => {
+            const opacity = opacityScale(triangle.area);
+            delaunayFillGroup
+              .append('polygon')
+              .attr(
+                'points',
+                `${triangle.x0},${triangle.y0} ${triangle.x1},${triangle.y1} ${triangle.x2},${triangle.y2}`
+              )
+              .attr('fill', colors.backgroundGray)
+              .attr('fill-opacity', opacity)
+              .attr('stroke', 'none');
+          });
+
+          // 绘制三角剖分线条（在填充上方）
+          delaunayGroup = svg.append('g').attr('class', 'delaunay-triangles');
+          if (delaunayGroup) {
+            delaunayGroup.style('display', showDelaunay.value ? 'block' : 'none');
+          }
+
+          triangleData.forEach((triangle) => {
+            delaunayGroup
+              .append('polygon')
+              .attr(
+                'points',
+                `${triangle.x0},${triangle.y0} ${triangle.x1},${triangle.y1} ${triangle.x2},${triangle.y2}`
+              )
+              .attr('fill', 'none')
+              .attr('stroke', colors.darkGray)
+              .attr('stroke-width', 0.5)
+              .attr('opacity', 0.3);
+          });
+
+          // 绘制数据点（在最上面）
           pointsGroup = svg.append('g').attr('class', 'data-points');
           if (pointsGroup) {
             pointsGroup.style('display', showDataPoints.value ? 'block' : 'none');
@@ -801,6 +913,20 @@
         }
       };
 
+      const toggleDelaunay = () => {
+        showDelaunay.value = !showDelaunay.value;
+        if (delaunayGroup) {
+          delaunayGroup.style('display', showDelaunay.value ? 'block' : 'none');
+        }
+      };
+
+      const toggleDelaunayFill = () => {
+        showDelaunayFill.value = !showDelaunayFill.value;
+        if (delaunayFillGroup) {
+          delaunayFillGroup.style('display', showDelaunayFill.value ? 'block' : 'none');
+        }
+      };
+
       const toggleDarkGrid = () => {
         showDarkGrid.value = !showDarkGrid.value;
         if (darkGridGroup) {
@@ -876,6 +1002,8 @@
         showGradient,
         showDarkGrid,
         showDataPoints,
+        showDelaunay,
+        showDelaunayFill,
         loading,
         error,
         goHome,
@@ -884,6 +1012,8 @@
         toggleGradient,
         toggleDarkGrid,
         toggleDataPoints,
+        toggleDelaunay,
+        toggleDelaunayFill,
         POLITICIAN_NAMES,
         selectedName,
         handleNameClick,
