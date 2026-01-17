@@ -76,6 +76,21 @@
             <button
               class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
               style="min-width: 100px"
+              @click="toggleSDE"
+              type="button"
+            >
+              <div
+                class="d-flex align-items-center justify-content-center rounded-circle mt-2 my-size-32 my-border-dark-gray"
+              >
+                <i :class="showSDE ? 'fas fa-eye' : 'fas fa-eye-slash'"></i>
+              </div>
+              <span class="mt-2" style="text-align: center">{{
+                showSDE ? '隱藏橢圓' : '顯示橢圓'
+              }}</span>
+            </button>
+            <button
+              class="btn my-button my-text-sm rounded px-2 py-1 d-flex flex-column align-items-center"
+              style="min-width: 100px"
               @click="toggleDelaunay"
               type="button"
             >
@@ -273,6 +288,7 @@
       const showDataPoints = ref(true);
       const showDelaunay = ref(false);
       const showDelaunayFill = ref(false);
+      const showSDE = ref(false);
       const averageTriangleArea = ref(0);
       let svg = null;
       let cellGroup = null;
@@ -282,6 +298,7 @@
       let pointsGroup = null;
       let delaunayGroup = null;
       let delaunayFillGroup = null;
+      let sdeGroup = null;
       let resizeTimer = null;
       const loading = ref(false);
       const error = ref(null);
@@ -545,6 +562,7 @@
         pointsGroup = null;
         delaunayGroup = null;
         delaunayFillGroup = null;
+        sdeGroup = null;
 
         const containerRect = contentContainer.value.getBoundingClientRect();
         const containerWidth = containerRect.width;
@@ -901,6 +919,81 @@
               .attr('stroke-opacity', strokeOpacity);
           });
 
+          // 计算标准偏差椭圆 (Standard Deviational Ellipse, SDE)
+          if (points.length >= 2) {
+            // 计算平均值（中心）
+            const meanX = points.reduce((sum, p) => sum + p.x, 0) / points.length;
+            const meanY = points.reduce((sum, p) => sum + p.y, 0) / points.length;
+
+            // 计算协方差矩阵的元素
+            let covXX = 0;
+            let covYY = 0;
+            let covXY = 0;
+
+            points.forEach((p) => {
+              const dx = p.x - meanX;
+              const dy = p.y - meanY;
+              covXX += dx * dx;
+              covYY += dy * dy;
+              covXY += dx * dy;
+            });
+
+            const n = points.length;
+            covXX /= n - 1;
+            covYY /= n - 1;
+            covXY /= n - 1;
+
+            // 计算协方差矩阵的特征值和特征向量
+            const trace = covXX + covYY;
+            const det = covXX * covYY - covXY * covXY;
+            const discriminant = trace * trace - 4 * det;
+
+            if (discriminant >= 0) {
+              const sqrtDisc = Math.sqrt(discriminant);
+              const lambda1 = (trace + sqrtDisc) / 2; // 较大特征值
+              const lambda2 = (trace - sqrtDisc) / 2; // 较小特征值
+
+              // 计算主特征向量（对应较大特征值）
+              let v1X, v1Y;
+              if (Math.abs(covXY) < 1e-10) {
+                // 协方差矩阵是对角矩阵
+                v1X = covXX > covYY ? 1 : 0;
+                v1Y = covXX > covYY ? 0 : 1;
+              } else {
+                v1X = 1;
+                v1Y = (lambda1 - covXX) / covXY;
+                const len = Math.sqrt(v1X * v1X + v1Y * v1Y);
+                v1X /= len;
+                v1Y /= len;
+              }
+
+              // 计算旋转角度（弧度）
+              const angle = Math.atan2(v1Y, v1X);
+
+              // 标准偏差椭圆的半轴长度（1个标准差，约68%的数据）
+              const semiMajor = Math.sqrt(lambda1); // 长半轴
+              const semiMinor = Math.sqrt(lambda2); // 短半轴
+
+              // 绘制标准偏差椭圆（在数据点下方）
+              sdeGroup = svg.append('g').attr('class', 'sde-ellipse');
+              if (sdeGroup) {
+                sdeGroup.style('display', showSDE.value ? 'block' : 'none');
+              }
+
+              sdeGroup
+                .append('ellipse')
+                .attr('cx', meanX)
+                .attr('cy', meanY)
+                .attr('rx', semiMajor)
+                .attr('ry', semiMinor)
+                .attr('transform', `rotate(${(angle * 180) / Math.PI} ${meanX} ${meanY})`)
+                .attr('fill', 'none')
+                .attr('stroke', colors.darkGray)
+                .attr('stroke-width', 1)
+                .attr('opacity', 0.5);
+            }
+          }
+
           // 绘制数据点（在最上面）
           pointsGroup = svg.append('g').attr('class', 'data-points');
           if (pointsGroup) {
@@ -1007,6 +1100,13 @@
         }
       };
 
+      const toggleSDE = () => {
+        showSDE.value = !showSDE.value;
+        if (sdeGroup) {
+          sdeGroup.style('display', showSDE.value ? 'block' : 'none');
+        }
+      };
+
       const toggleDarkGrid = () => {
         showDarkGrid.value = !showDarkGrid.value;
         if (darkGridGroup) {
@@ -1084,6 +1184,7 @@
         showDataPoints,
         showDelaunay,
         showDelaunayFill,
+        showSDE,
         averageTriangleArea,
         loading,
         error,
@@ -1095,6 +1196,7 @@
         toggleDataPoints,
         toggleDelaunay,
         toggleDelaunayFill,
+        toggleSDE,
         POLITICIAN_NAMES,
         selectedName,
         handleNameClick,
